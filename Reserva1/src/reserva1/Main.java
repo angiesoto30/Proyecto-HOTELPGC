@@ -36,7 +36,7 @@ public class Main {
         try {
             return DriverManager.getConnection(URL, USUARIO, PASSWORD);
         } catch (SQLException e) {
-            System.out.println("❌ Error al conectar a la base de datos: " + e.getMessage());
+            System.out.println(" Error al conectar a la base de datos: " + e.getMessage());
             return null;
         }
     }
@@ -93,7 +93,7 @@ public class Main {
             try {
                 return Integer.parseInt(sc.nextLine());
             } catch (Exception e) {
-                System.out.print("❌ Ingrese numero valido: ");
+                System.out.print(" Ingrese numero valido: ");
             }
         }
     }
@@ -145,7 +145,7 @@ public class Main {
                         precioHabitacion = rs.getDouble("precio");
                         return;
                     } else {
-                        System.out.println("❌ Habitacion invalida o no disponible.");
+                        System.out.println(" Habitacion invalida o no disponible.");
                     }
                 }
 
@@ -235,7 +235,7 @@ public class Main {
                 ps.executeUpdate();
             }
 
-            System.out.println("\n✅ Reserva registrada con exito (ID " + idReserva + ")");
+            System.out.println("\n Reserva registrada con exito (ID " + idReserva + ")");
 
         } catch (SQLException e) {
             System.out.println("Error al crear la reserva: " + e.getMessage());
