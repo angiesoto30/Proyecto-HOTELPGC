@@ -32,7 +32,7 @@ public class Main {
     private static final String USUARIO = "hotelapp";
     private static final String PASSWORD = "HotelApp2026!";
 
-    public static Connection conectar() {
+       public static Connection conectar() {
         try {
             return DriverManager.getConnection(URL, USUARIO, PASSWORD);
         } catch (SQLException e) {
@@ -41,7 +41,80 @@ public class Main {
         }
     }
 
+    public static void liberarHabitacionesVencidas() {
+
+        String actualizarHabitaciones =
+            "UPDATE Habitaciones SET disponible = 1 " +
+            "WHERE id_habitacion IN (" +
+            "  SELECT id_habitacion FROM Reservas " +
+            "  WHERE estado = 'Confirmada' AND fecha_salida < CAST(GETDATE() AS DATE))";
+
+        String actualizarReservas =
+            "UPDATE Reservas SET estado = 'Finalizada' " +
+            "WHERE estado = 'Confirmada' AND fecha_salida < CAST(GETDATE() AS DATE)";
+
+        try (Connection con = conectar();
+             Statement st = con.createStatement()) {
+
+            int habitacionesLiberadas = st.executeUpdate(actualizarHabitaciones);
+            st.executeUpdate(actualizarReservas);
+
+            if (habitacionesLiberadas > 0) {
+                System.out.println("\n[Aviso] " + habitacionesLiberadas + " habitacion(es) liberadas automaticamente por check-out vencido.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error al liberar habitaciones vencidas: " + e.getMessage());
+        }
+    }
+
+    public static void checkOut(String cedula) {
+
+        String buscarReserva =
+            "SELECT r.id_reserva, r.id_habitacion " +
+            "FROM Reservas r " +
+            "JOIN Clientes c ON r.id_cliente = c.id_cliente " +
+            "WHERE c.cedula = ? AND r.estado = 'Confirmada'";
+
+        try (Connection con = conectar();
+             PreparedStatement ps = con.prepareStatement(buscarReserva)) {
+
+            ps.setString(1, cedula);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    System.out.println("No se encontro una reserva activa para esa cedula.");
+                    return;
+                }
+
+                int idReservaEncontrada = rs.getInt("id_reserva");
+                int idHabitacion = rs.getInt("id_habitacion");
+
+                try (PreparedStatement ps2 = con.prepareStatement(
+                        "UPDATE Reservas SET estado = 'Finalizada' WHERE id_reserva = ?")) {
+                    ps2.setInt(1, idReservaEncontrada);
+                    ps2.executeUpdate();
+                }
+
+                try (PreparedStatement ps3 = con.prepareStatement(
+                        "UPDATE Habitaciones SET disponible = 1 WHERE id_habitacion = ?")) {
+                    ps3.setInt(1, idHabitacion);
+                    ps3.executeUpdate();
+                }
+
+                System.out.println("Check-out realizado con exito. Habitacion liberada.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error al hacer check-out: " + e.getMessage());
+        }
+    }
+
+    
+
     public static void main(String[] args) {
+        
+        liberarHabitacionesVencidas();
 
         while (true) {
 
@@ -52,6 +125,7 @@ public class Main {
             System.out.println("4. Ver todas las reservas");
             System.out.println("5. Ver estado de habitaciones");
             System.out.println("6. Generar reporte de ventas");
+            System.out.println("7. Hacer check-out");
             System.out.println("0. Salir");
             System.out.print("Opcion: ");
 
@@ -87,7 +161,12 @@ public class Main {
               String fechaFin = sc.nextLine();
 
             Reserva1.generarReporteVentas(fechaInicio, fechaFin);
-
+            
+              } else if (op == 7) {
+                System.out.print("\nIngrese la cedula del cliente para hacer check-out: ");
+                String cedCheckOut = sc.nextLine();
+                checkOut(cedCheckOut);
+   
      
             } else if (op == 0) {
                 break;
