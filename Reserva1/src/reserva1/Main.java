@@ -9,16 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 import java.util.Scanner;
-
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 
 public class Main {
 
@@ -31,15 +22,10 @@ public class Main {
 
     static String nombre;
     static String cedula;
-    static String correoCliente; 
     static int idCliente;
 
     static int idReserva;
 
-    
-    private static final String CORREO_REMITENTE = "HotelPGC2824@gmail.com";
-    private static final String CLAVE_APP = "zugb ddde fyfg hany";
-   
 
     private static final String URL =
         "jdbc:sqlserver://localhost:1433;databaseName=HotelReserva;encrypt=true;trustServerCertificate=true";
@@ -176,9 +162,6 @@ public class Main {
 
         System.out.print("Cedula: ");
         cedula = sc.nextLine();
-
-        System.out.print("Correo electronico (para enviarle la factura): ");
-        correoCliente = sc.nextLine();
 
         idCliente = buscarOCrearCliente(nombre, cedula);
     }
@@ -394,76 +377,27 @@ public class Main {
 
                     double total = subtotal - descuento;
 
-                    // Armamos el texto de la factura UNA sola vez,
-                    // para imprimirlo en consola y tambien enviarlo por correo.
-                    StringBuilder factura = new StringBuilder();
-                    factura.append("========= FACTURA =========\n");
-                    factura.append("Reserva N°: ").append(idReserva).append("\n");
-                    factura.append("Cliente: ").append(rs.getString("nombre")).append("\n");
-                    factura.append("Cedula: ").append(rs.getString("cedula")).append("\n");
-                    factura.append("Habitacion: ").append(rs.getInt("numero"))
-                           .append(" (").append(rs.getString("tipo")).append(")\n");
-                    factura.append("Entrada: ").append(rs.getDate("fecha_entrada")).append("\n");
-                    factura.append("Salida: ").append(rs.getDate("fecha_salida")).append("\n");
-                    factura.append("Precio habitacion: $").append(precioHab).append("\n");
-                    factura.append("Consumo restaurante: $").append(totalConsumo).append("\n");
-                    factura.append("Subtotal: $").append(subtotal).append("\n");
+                    System.out.println("\n========= FACTURA =========");
+                    System.out.println("Cliente: " + rs.getString("nombre"));
+                    System.out.println("Cedula: " + rs.getString("cedula"));
+                    System.out.println("Habitacion: " + rs.getInt("numero") + " (" + rs.getString("tipo") + ")");
+                    System.out.println("Entrada: " + rs.getDate("fecha_entrada"));
+                    System.out.println("Salida: " + rs.getDate("fecha_salida"));
+                    System.out.println("Precio habitacion: $" + precioHab);
+                    System.out.println("Consumo restaurante: $" + totalConsumo);
+                    System.out.println("Subtotal: $" + subtotal);
 
                     if (descuento > 0) {
-                        factura.append("Descuento aplicado: -$").append(descuento)
-                               .append(" (").append(motivo.trim()).append(")\n");
+                        System.out.println("Descuento aplicado: -$" + descuento + " (" + motivo.trim() + ")");
                     }
 
-                    factura.append("TOTAL A PAGAR: $").append(total).append("\n");
-                    factura.append("===========================\n");
-
-                    // 1. Se muestra en consola (igual que antes)
-                    System.out.println("\n" + factura.toString());
-
-                    // 2. Se envia por correo al cliente
-                    if (correoCliente != null && !correoCliente.isBlank()) {
-                        enviarFactura(correoCliente, factura.toString());
-                    }
+                    System.out.println("TOTAL A PAGAR: $" + total);
+                    System.out.println("===========================");
                 }
             }
 
         } catch (SQLException e) {
             System.out.println("Error al generar la factura: " + e.getMessage());
-        }
-    }
-
-    // ===================== ENVIO DE CORREO =====================
-    public static void enviarFactura(String destinatario, String contenidoFactura) {
-
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", "smtp.gmail.com");
-        props.put("mail.smtp.port", "587");
-
-        Session session = Session.getInstance(props, new javax.mail.Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(CORREO_REMITENTE, CLAVE_APP);
-            }
-        });
-
-        try {
-            Message mensaje = new MimeMessage(session);
-            mensaje.setFrom(new InternetAddress(CORREO_REMITENTE));
-            mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(destinatario));
-            mensaje.setSubject("Factura de tu reserva - Hotel PGC");
-            mensaje.setText(
-                "Gracias por reservar con nosotros.\n\n" +
-                contenidoFactura +
-                "\nEste es un correo generado automaticamente, por favor no respondas a este mensaje."
-            );
-
-            Transport.send(mensaje);
-            System.out.println(" Factura enviada correctamente a " + destinatario);
-
-        } catch (MessagingException e) {
-            System.out.println(" No se pudo enviar el correo: " + e.getMessage());
         }
     }
 }
