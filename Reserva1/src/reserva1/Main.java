@@ -10,6 +10,14 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Properties;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.PasswordAuthentication;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 
 public class Main {
 
@@ -22,9 +30,14 @@ public class Main {
 
     static String nombre;
     static String cedula;
+    static String correo;
     static int idCliente;
 
     static int idReserva;
+
+    // Datos para el envio de correo (reemplaza con los tuyos)
+    private static final String CORREO_EMISOR = "hotelpgc2824@gmail.com";
+    private static final String CLAVE_APP = "zugb ddde fyfg hany";
 
 
     private static final String URL =
@@ -51,7 +64,7 @@ public class Main {
             System.out.println("3. Cancelar una reserva");
             System.out.println("4. Ver todas las reservas");
             System.out.println("5. Ver estado de habitaciones");
-             System.out.println("6. Hacer checkout");
+            System.out.println("6. Hacer checkout");
             System.out.println("0. Salir");
             System.out.print("Opcion: ");
 
@@ -80,7 +93,7 @@ public class Main {
             } else if (op == 4) {
                 new Hotel().mostrarTodasReservas();
 
-                       } else if (op == 5) {
+            } else if (op == 5) {
                 new Hotel().mostrarEstado();
 
             } else if (op == 6) {
@@ -91,10 +104,9 @@ public class Main {
             } else if (op == 0) {
                 break;
             }
-        
-            }
         }
-    
+    }
+
     public static int leerNumero() {
         while (true) {
             try {
@@ -170,14 +182,17 @@ public class Main {
         System.out.print("Cedula: ");
         cedula = sc.nextLine();
 
-        idCliente = buscarOCrearCliente(nombre, cedula);
+        System.out.print("Correo electronico: ");
+        correo = sc.nextLine();
+
+        idCliente = buscarOCrearCliente(nombre, cedula, correo);
     }
 
 
-    public static int buscarOCrearCliente(String nombre, String cedula) {
+    public static int buscarOCrearCliente(String nombre, String cedula, String correo) {
 
         String buscar = "SELECT id_cliente FROM Clientes WHERE cedula = ?";
-        String insertar = "INSERT INTO Clientes (nombre, cedula) VALUES (?, ?)";
+        String insertar = "INSERT INTO Clientes (nombre, cedula, email) VALUES (?, ?, ?)";
 
         try (Connection con = conectar()) {
 
@@ -193,6 +208,7 @@ public class Main {
             try (PreparedStatement ps = con.prepareStatement(insertar, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, nombre);
                 ps.setString(2, cedula);
+                ps.setString(3, correo);
                 ps.executeUpdate();
 
                 try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -347,7 +363,7 @@ public class Main {
     public static void mostrarFactura(int comidasElegidas, boolean clienteFrecuente) {
 
         String sql =
-            "SELECT c.nombre, c.cedula, h.numero, h.tipo, h.precio AS precio_habitacion, " +
+            "SELECT c.nombre, c.cedula, c.email, h.numero, h.tipo, h.precio AS precio_habitacion, " +
             "       r.fecha_entrada, r.fecha_salida, " +
             "       ISNULL(SUM(m.precio * co.cantidad), 0) AS total_consumo " +
             "FROM Reservas r " +
@@ -356,7 +372,7 @@ public class Main {
             "LEFT JOIN Consumos co ON co.id_reserva = r.id_reserva " +
             "LEFT JOIN Menus m ON co.id_menu = m.id_menu " +
             "WHERE r.id_reserva = ? " +
-            "GROUP BY c.nombre, c.cedula, h.numero, h.tipo, h.precio, r.fecha_entrada, r.fecha_salida";
+            "GROUP BY c.nombre, c.cedula, c.email, h.numero, h.tipo, h.precio, r.fecha_entrada, r.fecha_salida";
 
         try (Connection con = conectar();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -383,28 +399,67 @@ public class Main {
                     }
 
                     double total = subtotal - descuento;
+                    String emailCliente = rs.getString("email");
 
-                    System.out.println("\n========= FACTURA =========");
-                    System.out.println("Cliente: " + rs.getString("nombre"));
-                    System.out.println("Cedula: " + rs.getString("cedula"));
-                    System.out.println("Habitacion: " + rs.getInt("numero") + " (" + rs.getString("tipo") + ")");
-                    System.out.println("Entrada: " + rs.getDate("fecha_entrada"));
-                    System.out.println("Salida: " + rs.getDate("fecha_salida"));
-                    System.out.println("Precio habitacion: $" + precioHab);
-                    System.out.println("Consumo restaurante: $" + totalConsumo);
-                    System.out.println("Subtotal: $" + subtotal);
+                    StringBuilder factura = new StringBuilder();
+                    factura.append("========= FACTURA =========\n");
+                    factura.append("Cliente: ").append(rs.getString("nombre")).append("\n");
+                    factura.append("Cedula: ").append(rs.getString("cedula")).append("\n");
+                    factura.append("Habitacion: ").append(rs.getInt("numero")).append(" (").append(rs.getString("tipo")).append(")\n");
+                    factura.append("Entrada: ").append(rs.getDate("fecha_entrada")).append("\n");
+                    factura.append("Salida: ").append(rs.getDate("fecha_salida")).append("\n");
+                    factura.append("Precio habitacion: $").append(precioHab).append("\n");
+                    factura.append("Consumo restaurante: $").append(totalConsumo).append("\n");
+                    factura.append("Subtotal: $").append(subtotal).append("\n");
 
                     if (descuento > 0) {
-                        System.out.println("Descuento aplicado: -$" + descuento + " (" + motivo.trim() + ")");
+                        factura.append("Descuento aplicado: -$").append(descuento).append(" (").append(motivo.trim()).append(")\n");
                     }
 
-                    System.out.println("TOTAL A PAGAR: $" + total);
-                    System.out.println("===========================");
+                    factura.append("TOTAL A PAGAR: $").append(total).append("\n");
+                    factura.append("===========================\n");
+
+                    System.out.println("\n" + factura.toString());
+
+                    if (emailCliente != null && !emailCliente.isBlank()) {
+                        enviarFacturaPorCorreo(emailCliente, factura.toString());
+                    } else {
+                        System.out.println("El cliente no tiene correo registrado, no se envio factura.");
+                    }
                 }
             }
 
         } catch (SQLException e) {
             System.out.println("Error al generar la factura: " + e.getMessage());
+        }
+    }
+
+    public static void enviarFacturaPorCorreo(String correoDestino, String cuerpoFactura) {
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+
+        Session session = Session.getInstance(props, new javax.mail.Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(CORREO_EMISOR, CLAVE_APP);
+            }
+        });
+
+        try {
+            Message mensaje = new MimeMessage(session);
+            mensaje.setFrom(new InternetAddress(CORREO_EMISOR));
+            mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(correoDestino));
+            mensaje.setSubject("Factura Electronica - Hotel");
+            mensaje.setText(cuerpoFactura);
+
+            Transport.send(mensaje);
+            System.out.println("\n Factura enviada correctamente a " + correoDestino);
+
+        } catch (MessagingException e) {
+            System.out.println("Error al enviar el correo: " + e.getMessage());
         }
     }
 }
