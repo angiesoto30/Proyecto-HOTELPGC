@@ -11,7 +11,7 @@ public class Desayuno extends Reserva1 {
     String cedula,
                      String telefono) {
 
-        super(nombreCliente, numeroHabitacion, tipoHabitacion);
+        super();
 
         this.cedula = cedula;
         this.telefono = telefono;

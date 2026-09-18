@@ -27,6 +27,8 @@ public class Reserva1 {
         this.fechaSalida = fechaSalida;
         this.estado = estado;
     }
+     protected Reserva1() {
+}
 
     public int getIdReserva() {
         return idReserva;
