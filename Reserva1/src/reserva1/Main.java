@@ -51,6 +51,7 @@ public class Main {
             System.out.println("3. Cancelar una reserva");
             System.out.println("4. Ver todas las reservas");
             System.out.println("5. Ver estado de habitaciones");
+             System.out.println("6. Hacer checkout");
             System.out.println("0. Salir");
             System.out.print("Opcion: ");
 
@@ -79,15 +80,21 @@ public class Main {
             } else if (op == 4) {
                 new Hotel().mostrarTodasReservas();
 
-            } else if (op == 5) {
+                       } else if (op == 5) {
                 new Hotel().mostrarEstado();
+
+            } else if (op == 6) {
+                System.out.print("\nIngrese la cedula del cliente a hacer checkout: ");
+                String cedChk = sc.nextLine();
+                new Hotel().hacerCheckoutManual(cedChk);
 
             } else if (op == 0) {
                 break;
             }
+        
+            }
         }
-    }
-
+    
     public static int leerNumero() {
         while (true) {
             try {

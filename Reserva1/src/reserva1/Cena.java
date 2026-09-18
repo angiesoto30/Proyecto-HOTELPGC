@@ -12,7 +12,7 @@ public class Cena extends Reserva1 {
                 String tipoHabitacion,
                 Reserva1 reserva) {
 
-        super(nombreCliente, numeroHabitacion, tipoHabitacion);
+        super();
 
         this.reserva = reserva;
     }

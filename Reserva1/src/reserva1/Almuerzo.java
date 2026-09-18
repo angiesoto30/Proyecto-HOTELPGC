@@ -12,7 +12,7 @@ public class Almuerzo extends Reserva1 {
                      String tipoHabitacion,
                      Habitacion habitacion) {
 
-        super(nombreCliente, numeroHabitacion, tipoHabitacion);
+        super();
 
         this.habitacion = habitacion;
     }

@@ -15,6 +15,8 @@ public class Hotel {
 
     public Hotel() {
         this.habitaciones = Habitacion.cargarTodas();
+       
+        ejecutarCheckoutAutomatico();
     }
 
     public void mostrarDisponibles() {
@@ -97,6 +99,85 @@ public class Hotel {
 
         } catch (SQLException e) {
             System.out.println("Error al cancelar la reserva: " + e.getMessage());
+        }
+    }
+        public void hacerCheckoutManual(String cedula) {
+        List<Reserva1> reservas = buscarReservasPorCedula(cedula);
+        if (reservas.isEmpty()) {
+            System.out.println("No se encontro reserva activa con esa cedula.");
+            return;
+        }
+
+        Reserva1 r = reservas.get(0);
+        String sql = "UPDATE Reservas SET estado = 'Finalizada' WHERE id_reserva = ?";
+        String sqlHabitacion = "UPDATE Habitaciones SET disponible = 1 WHERE id_habitacion = ?";
+
+        try (Connection con = Main.conectar()) {
+
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setInt(1, r.getIdReserva());
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = con.prepareStatement(sqlHabitacion)) {
+                ps.setInt(1, r.getHabitacion().getIdHabitacion());
+                ps.executeUpdate();
+            }
+
+            r.getHabitacion().setDisponible(true);
+            System.out.println("Checkout realizado con exito. Habitacion " + r.getHabitacion().getNumero() + " liberada.");
+
+        } catch (SQLException e) {
+            System.out.println("Error al hacer el checkout: " + e.getMessage());
+        }
+    }
+            public void ejecutarCheckoutAutomatico() {
+        String sqlBuscar =
+            "SELECT r.id_reserva, h.id_habitacion, h.numero " +
+            "FROM Reservas r " +
+            "JOIN Habitaciones h ON r.id_habitacion = h.id_habitacion " +
+            "WHERE r.estado = 'Confirmada' AND r.fecha_salida <= CAST(GETDATE() AS DATE)";
+
+        String sqlActualizarReserva = "UPDATE Reservas SET estado = 'Finalizada' WHERE id_reserva = ?";
+        String sqlActualizarHabitacion = "UPDATE Habitaciones SET disponible = 1 WHERE id_habitacion = ?";
+
+        try (Connection con = Main.conectar();
+             PreparedStatement psBuscar = con.prepareStatement(sqlBuscar);
+             ResultSet rs = psBuscar.executeQuery()) {
+
+            int contador = 0;
+
+            while (rs.next()) {
+                int idReserva = rs.getInt("id_reserva");
+                int idHabitacion = rs.getInt("id_habitacion");
+                int numeroHabitacion = rs.getInt("numero");
+
+                try (PreparedStatement psReserva = con.prepareStatement(sqlActualizarReserva)) {
+                    psReserva.setInt(1, idReserva);
+                    psReserva.executeUpdate();
+                }
+
+                try (PreparedStatement psHabitacion = con.prepareStatement(sqlActualizarHabitacion)) {
+                    psHabitacion.setInt(1, idHabitacion);
+                    psHabitacion.executeUpdate();
+                }
+
+                for (Habitacion h : habitaciones) {
+                    if (h.getIdHabitacion() == idHabitacion) {
+                        h.setDisponible(true);
+                    }
+                }
+
+                System.out.println("Checkout automatico: Habitacion " + numeroHabitacion + " liberada.");
+                contador++;
+            }
+
+            if (contador == 0) {
+                System.out.println("No hay checkouts automaticos pendientes.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error en el checkout automatico: " + e.getMessage());
         }
     }
 
