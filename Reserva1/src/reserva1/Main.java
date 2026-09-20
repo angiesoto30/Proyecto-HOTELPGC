@@ -7,6 +7,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -35,6 +37,9 @@ public class Main {
 
     static int idReserva;
 
+    static String nombreUsuarioActual;
+    static String rolUsuarioActual;
+
     // Datos para el envio de correo (reemplaza con los tuyos)
     private static final String CORREO_EMISOR = "hotelpgc2824@gmail.com";
     private static final String CLAVE_APP = "zugb ddde fyfg hany";
@@ -56,16 +61,52 @@ public class Main {
 
     public static void main(String[] args) {
 
+        // ---- LINEA TEMPORAL: usala una sola vez para generar el hash de una contrasena, luego borrala ----
+        // System.out.println(generarHash("1234"));
+
+        // Lo primero que se decide es el tipo de usuario: Cliente o Empleado.
+        // Solo el Empleado necesita usuario/contrasena.
+
         while (true) {
 
-            System.out.println("\n===== HOTEL =====");
-            System.out.println("1. Reservar");
-            System.out.println("2. Ver mis reservas ");
-            System.out.println("3. Cancelar una reserva");
-            System.out.println("4. Ver todas las reservas");
-            System.out.println("5. Ver estado de habitaciones");
-            System.out.println("6. Hacer checkout");
+            System.out.println("\n===== HOTEL PGC =====");
+            System.out.println("1. Soy Cliente");
+            System.out.println("2. Soy Empleado");
             System.out.println("0. Salir");
+            System.out.print("Opcion: ");
+
+            int op = leerNumero();
+
+            if (op == 1) {
+                menuCliente();
+
+            } else if (op == 2) {
+                // ----- EMPLEADO: requiere login -----
+                if (iniciarSesion()) {
+                    menuEmpleado();
+                } else {
+                    System.out.println("\nNo fue posible iniciar sesion.");
+                }
+
+            } else if (op == 0) {
+                break;
+            } else {
+                System.out.println(" Opcion invalida.");
+            }
+        }
+    }
+
+    // ================= MENU CLIENTE (sin login) =================
+
+    public static void menuCliente() {
+
+        while (true) {
+
+            System.out.println("\n===== CLIENTE - HOTEL PGC =====");
+            System.out.println("1. Reservar habitacion");
+            System.out.println("2. Ver mis reservas");
+            System.out.println("3. Cancelar una reserva");
+            System.out.println("0. Volver al menu principal");
             System.out.print("Opcion: ");
 
             int op = leerNumero();
@@ -90,20 +131,111 @@ public class Main {
                 String nom = sc.nextLine();
                 new Hotel().cancelarReserva(ced, nom);
 
-            } else if (op == 4) {
+            } else if (op == 0) {
+                break;
+
+            } else {
+                System.out.println(" Opcion invalida.");
+            }
+        }
+    }
+
+    // ================= MENU EMPLEADOS (requiere sesion) =================
+
+    public static void menuEmpleado() {
+
+        while (true) {
+
+            System.out.println("\n===== PANEL EMPLEADOS =====");
+            System.out.println("Sesion activa: " + nombreUsuarioActual + " (" + rolUsuarioActual + ")");
+            System.out.println("1. Ver todas las reservas");
+            System.out.println("2. Ver estado de habitaciones");
+            System.out.println("3. Hacer checkout");
+            System.out.println("0. Cerrar sesion");
+            System.out.print("Opcion: ");
+
+            int op = leerNumero();
+
+            if (op == 1) {
                 new Hotel().mostrarTodasReservas();
 
-            } else if (op == 5) {
+            } else if (op == 2) {
                 new Hotel().mostrarEstado();
 
-            } else if (op == 6) {
+            } else if (op == 3) {
                 System.out.print("\nIngrese la cedula del cliente a hacer checkout: ");
                 String cedChk = sc.nextLine();
                 new Hotel().hacerCheckoutManual(cedChk);
 
             } else if (op == 0) {
+                nombreUsuarioActual = null;
+                rolUsuarioActual = null;
                 break;
+
+            } else {
+                System.out.println(" Opcion invalida.");
             }
+        }
+    }
+
+    // ================= LOGIN =================
+
+    public static boolean iniciarSesion() {
+
+        int intentos = 3;
+
+        while (intentos > 0) {
+
+            System.out.println("\n===== INICIO DE SESION - HOTEL PGC =====");
+            System.out.print("Usuario: ");
+            String usuarioIngresado = sc.nextLine();
+            System.out.print("Contrasena: ");
+            String contrasenaIngresada = sc.nextLine();
+
+            String hashIngresado = generarHash(contrasenaIngresada);
+            if (hashIngresado == null) return false;
+
+            String sql = "SELECT usuario, rol FROM Usuarios WHERE usuario = ? AND contrasena = ?";
+
+            try (Connection con = conectar();
+                 PreparedStatement ps = con.prepareStatement(sql)) {
+
+                ps.setString(1, usuarioIngresado);
+                ps.setString(2, hashIngresado);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        nombreUsuarioActual = rs.getString("usuario");
+                        rolUsuarioActual = rs.getString("rol");
+                        System.out.println("\nBienvenido, " + nombreUsuarioActual + " (" + rolUsuarioActual + ")");
+                        return true;
+                    }
+                }
+
+            } catch (SQLException e) {
+                System.out.println("Error al validar el usuario: " + e.getMessage());
+                return false;
+            }
+
+            intentos--;
+            System.out.println("Usuario o contrasena incorrectos. Intentos restantes: " + intentos);
+        }
+
+        return false;
+    }
+
+    public static String generarHash(String texto) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] resultado = md.digest(texto.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : resultado) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            System.out.println("Error al generar el hash: " + e.getMessage());
+            return null;
         }
     }
 
@@ -461,5 +593,9 @@ public class Main {
         } catch (MessagingException e) {
             System.out.println("Error al enviar el correo: " + e.getMessage());
         }
+    }
+
+    static void checkOut(String ced) {
+        throw new UnsupportedOperationException("Not supported yet.");
     }
 }
