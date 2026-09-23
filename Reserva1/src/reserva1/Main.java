@@ -40,7 +40,7 @@ public class Main {
     static String nombreUsuarioActual;
     static String rolUsuarioActual;
 
-   
+    // Datos para el envio de correo (reemplaza con los tuyos)
     private static final String CORREO_EMISOR = "hotelpgc2824@gmail.com";
     private static final String CLAVE_APP = "zugb ddde fyfg hany";
 
@@ -61,7 +61,12 @@ public class Main {
 
     public static void main(String[] args) {
 
-       
+        // ---- LINEA TEMPORAL: usala una sola vez para generar el hash de una contrasena, luego borrala ----
+        // System.out.println(generarHash("1234"));
+
+        // Lo primero que se decide es el tipo de usuario: Cliente o Empleado.
+        // Solo el Empleado necesita usuario/contrasena.
+
         while (true) {
 
             System.out.println("\n===== HOTEL PGC =====");
@@ -91,7 +96,7 @@ public class Main {
         }
     }
 
-    
+    // ================= MENU CLIENTE (sin login) =================
 
     public static void menuCliente() {
 
@@ -135,7 +140,7 @@ public class Main {
         }
     }
 
-    
+    // ================= MENU EMPLEADOS (requiere sesion) =================
 
     public static void menuEmpleado() {
 
@@ -173,7 +178,7 @@ public class Main {
         }
     }
 
-    
+    // ================= LOGIN =================
 
     public static boolean iniciarSesion() {
 
