@@ -9,6 +9,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -40,15 +42,21 @@ public class Main {
     static String nombreUsuarioActual;
     static String rolUsuarioActual;
 
+    private static final String ROL_ADMIN = "Jefe";
+
     // Datos para el envio de correo (reemplaza con los tuyos)
     private static final String CORREO_EMISOR = "hotelpgc2824@gmail.com";
-    private static final String CLAVE_APP = "zugb ddde fyfg hany";
-
+    private static final String CLAVE_APP = "zugbdddefyfghany";
 
     private static final String URL =
         "jdbc:sqlserver://localhost:1433;databaseName=HotelReserva;encrypt=true;trustServerCertificate=true";
     private static final String USUARIO = "hotelapp";
-    private static final String PASSWORD = "HotelApp2026!";
+    private static final String PASSWORD = obtenerPasswordBD();
+
+    private static String obtenerPasswordBD() {
+        String p = System.getenv("HOTEL_DB_PASSWORD");
+        return (p == null || p.isBlank()) ? "HotelApp2026!" : p;
+    }
 
     public static Connection conectar() {
         try {
@@ -61,11 +69,12 @@ public class Main {
 
     public static void main(String[] args) {
 
-        // ---- LINEA TEMPORAL: usala una sola vez para generar el hash de una contrasena, luego borrala ----
-        // System.out.println(generarHash("1234"));
+        if (args.length > 0 && args[0].equalsIgnoreCase("recordatorios")) {
+            enviarRecordatoriosCheckIn();
+            return;
+        }
 
-        // Lo primero que se decide es el tipo de usuario: Cliente o Empleado.
-        // Solo el Empleado necesita usuario/contrasena.
+        enviarRecordatoriosCheckIn();
 
         while (true) {
 
@@ -81,7 +90,6 @@ public class Main {
                 menuCliente();
 
             } else if (op == 2) {
-                // ----- EMPLEADO: requiere login -----
                 if (iniciarSesion()) {
                     menuEmpleado();
                 } else {
@@ -91,7 +99,7 @@ public class Main {
             } else if (op == 0) {
                 break;
             } else {
-                System.out.println(" Opcion invalida.");
+                System.out.println(" Opcion invalida. Intenta de nuevo.");
             }
         }
     }
@@ -106,16 +114,19 @@ public class Main {
             System.out.println("1. Reservar habitacion");
             System.out.println("2. Ver mis reservas");
             System.out.println("3. Cancelar una reserva");
+            System.out.println("4. Buscar habitaciones con filtros");
             System.out.println("0. Volver al menu principal");
             System.out.print("Opcion: ");
 
             int op = leerNumero();
 
             if (op == 1) {
-                seleccionarHabitacion();
-                pedirDatos();
-                crearReserva();
-                restaurante();
+                boolean habitacionElegida = seleccionarHabitacion();
+                if (habitacionElegida) {
+                    pedirDatos();
+                    crearReserva();
+                    restaurante();
+                }
 
             } else if (op == 2) {
                 System.out.print("\nIngrese su cedula: ");
@@ -131,18 +142,155 @@ public class Main {
                 String nom = sc.nextLine();
                 new Hotel().cancelarReserva(ced, nom);
 
+            } else if (op == 4) {
+                buscarHabitacionesConFiltro();
+
             } else if (op == 0) {
                 break;
 
             } else {
-                System.out.println(" Opcion invalida.");
+                System.out.println(" Opcion invalida. Intenta de nuevo.");
             }
         }
+    }
+
+    public static void buscarHabitacionesConFiltro() {
+
+        Double precioMin = leerPrecioOpcional("\nPrecio minimo (deja vacio para no filtrar): ");
+        Double precioMax = leerPrecioOpcional("Precio maximo (deja vacio para no filtrar): ");
+
+        System.out.print("Tipo de habitacion, ej: Sencilla, Doble, Suite (deja vacio para no filtrar): ");
+        String textoTipo = sc.nextLine().trim();
+        String tipo = textoTipo.isEmpty() ? null : textoTipo;
+
+        new Hotel().buscarConFiltros(precioMin, precioMax, tipo);
+    }
+
+    public static Double leerPrecioOpcional(String mensaje) {
+        while (true) {
+            System.out.print(mensaje);
+            String texto = sc.nextLine().trim();
+
+            if (texto.isEmpty()) {
+                return null;
+            }
+
+            texto = texto.replace("$", "").replace(".", "").replace(",", "").replace(" ", "");
+
+            try {
+                return Double.parseDouble(texto);
+            } catch (NumberFormatException e) {
+                System.out.println(" Eso no es un numero valido. Deja vacio si no quieres filtrar por precio.");
+            }
+        }
+    }
+
+    public static void enviarRecordatoriosCheckIn() {
+
+        String sql =
+            "SELECT r.id_reserva, c.nombre, c.email, h.numero, h.tipo, r.fecha_entrada " +
+            "FROM Reservas r " +
+            "JOIN Clientes c ON r.id_cliente = c.id_cliente " +
+            "JOIN Habitaciones h ON r.id_habitacion = h.id_habitacion " +
+            "WHERE r.estado = 'Confirmada' " +
+            "AND r.fecha_entrada = CAST(DATEADD(day, 1, GETDATE()) AS DATE) " +
+            "AND ISNULL(r.recordatorio_enviado, 0) = 0";
+
+        try (Connection con = conectar();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+
+                String email = rs.getString("email");
+                if (email == null || email.isBlank()) {
+                    continue;
+                }
+
+                String mensaje =
+                    "Hola " + rs.getString("nombre") + ",\n\n" +
+                    "Te recordamos que tu check-in en el Hotel PGC es manana, " + rs.getDate("fecha_entrada") + ".\n" +
+                    "Habitacion: " + rs.getInt("numero") + " (" + rs.getString("tipo") + ")\n\n" +
+                    "Te esperamos!";
+
+                if (enviarRecordatorioPorCorreo(email, mensaje)) {
+                    marcarRecordatorioEnviado(rs.getInt("id_reserva"));
+                }
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error al enviar recordatorios: " + e.getMessage());
+        } catch (NullPointerException e) {
+            System.out.println("No se pudo consultar recordatorios (sin conexion a la base de datos).");
+        }
+    }
+
+    public static void marcarRecordatorioEnviado(int idReserva) {
+
+        String sql = "UPDATE Reservas SET recordatorio_enviado = 1 WHERE id_reserva = ?";
+
+        try (Connection con = conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, idReserva);
+            ps.executeUpdate();
+
+        } catch (SQLException e) {
+            System.out.println("Error al marcar recordatorio enviado: " + e.getMessage());
+        }
+    }
+
+    private static boolean enviarCorreo(String correoDestino, String asunto, String cuerpo) {
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        props.put("mail.smtp.ssl.protocols", "TLSv1.2");
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "10000");
+
+        Session session = Session.getInstance(props, new javax.mail.Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(CORREO_EMISOR, CLAVE_APP);
+            }
+        });
+
+        try {
+            Message mensaje = new MimeMessage(session);
+            mensaje.setFrom(new InternetAddress(CORREO_EMISOR));
+            mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(correoDestino));
+            mensaje.setSubject(asunto);
+            mensaje.setText(cuerpo);
+
+            Transport.send(mensaje);
+            return true;
+
+        } catch (MessagingException e) {
+            System.out.println("Error al enviar el correo a " + correoDestino + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean enviarRecordatorioPorCorreo(String correoDestino, String cuerpoMensaje) {
+        return enviarCorreo(correoDestino, "Recordatorio de Check-in - Hotel PGC", cuerpoMensaje);
+    }
+
+    public static boolean enviarFacturaPorCorreo(String correoDestino, String cuerpoFactura) {
+        boolean ok = enviarCorreo(correoDestino, "Factura Electronica - Hotel", cuerpoFactura);
+        if (ok) {
+            System.out.println("\n Factura enviada correctamente a " + correoDestino);
+        }
+        return ok;
     }
 
     // ================= MENU EMPLEADOS (requiere sesion) =================
 
     public static void menuEmpleado() {
+
+        boolean esAdmin = rolUsuarioActual != null && rolUsuarioActual.equalsIgnoreCase(ROL_ADMIN);
 
         while (true) {
 
@@ -151,6 +299,12 @@ public class Main {
             System.out.println("1. Ver todas las reservas");
             System.out.println("2. Ver estado de habitaciones");
             System.out.println("3. Hacer checkout");
+
+            if (esAdmin) {
+                System.out.println("4. Editar una reserva (Administrador)");
+                System.out.println("5. Eliminar una reserva definitivamente (Administrador)");
+            }
+
             System.out.println("0. Cerrar sesion");
             System.out.print("Opcion: ");
 
@@ -167,13 +321,39 @@ public class Main {
                 String cedChk = sc.nextLine();
                 new Hotel().hacerCheckoutManual(cedChk);
 
+            } else if (op == 4 && esAdmin) {
+
+                new Hotel().mostrarTodasReservas();
+                System.out.print("\nIngrese el ID de la reserva a editar: ");
+                int idEditar = leerNumero();
+
+                String nuevaEntrada = leerFecha("Nueva fecha de entrada (ej: 2026-10-07, 07/10/2026 o 07-10-2026): ");
+                String nuevaSalida = leerFecha("Nueva fecha de salida (mismo formato): ");
+
+                new Hotel().editarReserva(idEditar, nuevaEntrada, nuevaSalida);
+
+            } else if (op == 5 && esAdmin) {
+
+                new Hotel().mostrarTodasReservas();
+                System.out.print("\nIngrese el ID de la reserva a eliminar: ");
+                int idEliminar = leerNumero();
+
+                System.out.print("¿Seguro que deseas eliminarla definitivamente? (1=Si / 0=No): ");
+                int confirmar = leerNumero();
+
+                if (confirmar == 1) {
+                    new Hotel().eliminarReservaDefinitivamente(idEliminar);
+                } else {
+                    System.out.println("Operacion cancelada, no se elimino nada.");
+                }
+
             } else if (op == 0) {
                 nombreUsuarioActual = null;
                 rolUsuarioActual = null;
                 break;
 
             } else {
-                System.out.println(" Opcion invalida.");
+                System.out.println(" Opcion invalida. Intenta de nuevo.");
             }
         }
     }
@@ -241,18 +421,50 @@ public class Main {
 
     public static int leerNumero() {
         while (true) {
+            String texto = sc.nextLine().trim();
+
+            if (texto.isEmpty()) {
+                continue;
+            }
+
             try {
-                return Integer.parseInt(sc.nextLine());
-            } catch (Exception e) {
-                System.out.print(" Ingrese numero valido: ");
+                return Integer.parseInt(texto);
+            } catch (NumberFormatException e) {
+                System.out.print(" Ese valor no es un numero valido, intenta de nuevo: ");
             }
         }
     }
 
+    public static String leerFecha(String mensaje) {
 
-    public static void mostrarHabitaciones() {
+        String[] formatosAceptados = {"yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy"};
+
+        while (true) {
+            System.out.print(mensaje);
+            String textoFecha = sc.nextLine().trim();
+
+            for (String formato : formatosAceptados) {
+                try {
+                    SimpleDateFormat sdfEntrada = new SimpleDateFormat(formato);
+                    sdfEntrada.setLenient(false);
+                    java.util.Date fechaValida = sdfEntrada.parse(textoFecha);
+
+                    SimpleDateFormat sdfSalida = new SimpleDateFormat("yyyy-MM-dd");
+                    return sdfSalida.format(fechaValida);
+
+                } catch (ParseException e) {
+                }
+            }
+
+            System.out.println(" Fecha invalida. Usa alguno de estos formatos: AAAA-MM-DD, DD/MM/AAAA o DD-MM-AAAA. Intenta de nuevo.");
+        }
+    }
+
+
+    public static boolean mostrarHabitaciones() {
         System.out.println("\nHABITACIONES DISPONIBLES:");
         String sql = "SELECT numero, tipo, precio FROM Habitaciones WHERE disponible = 1";
+        boolean hayDisponibles = false;
 
         try (Connection con = conectar();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -264,21 +476,37 @@ public class Main {
                     rs.getString("tipo") + " - $" +
                     rs.getDouble("precio")
                 );
+                hayDisponibles = true;
+            }
+
+            if (!hayDisponibles) {
+                System.out.println("En este momento no hay habitaciones disponibles.");
             }
 
         } catch (SQLException e) {
             System.out.println("Error al consultar habitaciones: " + e.getMessage());
         }
+
+        return hayDisponibles;
     }
 
 
-    public static void seleccionarHabitacion() {
+    public static boolean seleccionarHabitacion() {
 
         while (true) {
 
-            mostrarHabitaciones();
-            System.out.print("Elige el numero de habitacion: ");
+            boolean hayDisponibles = mostrarHabitaciones();
+
+            if (!hayDisponibles) {
+                return false;
+            }
+
+            System.out.print("Elige el numero de habitacion (0 para volver al menu): ");
             int op = leerNumero();
+
+            if (op == 0) {
+                return false;
+            }
 
             String sql = "SELECT id_habitacion, tipo, precio FROM Habitaciones "
                        + "WHERE numero = ? AND disponible = 1";
@@ -294,9 +522,9 @@ public class Main {
                         numeroHabitacion = op;
                         tipoHabitacion = rs.getString("tipo");
                         precioHabitacion = rs.getDouble("precio");
-                        return;
+                        return true;
                     } else {
-                        System.out.println(" Habitacion invalida o no disponible.");
+                        System.out.println(" Habitacion invalida o no disponible. Intenta con otro numero.");
                     }
                 }
 
@@ -315,7 +543,7 @@ public class Main {
         cedula = sc.nextLine();
 
         System.out.print("Correo electronico: ");
-        correo = sc.nextLine();
+        correo = sc.nextLine().trim();
 
         idCliente = buscarOCrearCliente(nombre, cedula, correo);
     }
@@ -323,8 +551,9 @@ public class Main {
 
     public static int buscarOCrearCliente(String nombre, String cedula, String correo) {
 
-        String buscar = "SELECT id_cliente FROM Clientes WHERE cedula = ?";
+        String buscar = "SELECT id_cliente, email FROM Clientes WHERE cedula = ?";
         String insertar = "INSERT INTO Clientes (nombre, cedula, email) VALUES (?, ?, ?)";
+        String actualizarCorreo = "UPDATE Clientes SET email = ? WHERE id_cliente = ?";
 
         try (Connection con = conectar()) {
 
@@ -332,7 +561,21 @@ public class Main {
                 ps.setString(1, cedula);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        return rs.getInt("id_cliente");
+                        int idExistente = rs.getInt("id_cliente");
+                        String correoGuardado = rs.getString("email");
+
+                        boolean correoNuevo = correo != null && !correo.isBlank()
+                                && (correoGuardado == null || !correoGuardado.equalsIgnoreCase(correo));
+
+                        if (correoNuevo) {
+                            try (PreparedStatement psUpdate = con.prepareStatement(actualizarCorreo)) {
+                                psUpdate.setString(1, correo);
+                                psUpdate.setInt(2, idExistente);
+                                psUpdate.executeUpdate();
+                            }
+                        }
+
+                        return idExistente;
                     }
                 }
             }
@@ -359,14 +602,11 @@ public class Main {
 
     public static void crearReserva() {
 
-        System.out.print("\nFecha de entrada (AAAA-MM-DD): ");
-        String entrada = sc.nextLine();
+        String entrada = leerFecha("\nFecha de entrada (ej: 2026-10-07, 07/10/2026 o 07-10-2026): ");
+        String salida = leerFecha("Fecha de salida (mismo formato): ");
 
-        System.out.print("Fecha de salida (AAAA-MM-DD): ");
-        String salida = sc.nextLine();
-
-        String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado) "
-                         + "VALUES (?, ?, ?, ?, 'Confirmada')";
+        String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado, recordatorio_enviado) "
+                         + "VALUES (?, ?, ?, ?, 'Confirmada', 0)";
         String actualizar = "UPDATE Habitaciones SET disponible = 0 WHERE id_habitacion = ?";
 
         try (Connection con = conectar()) {
@@ -564,38 +804,5 @@ public class Main {
         } catch (SQLException e) {
             System.out.println("Error al generar la factura: " + e.getMessage());
         }
-    }
-
-    public static void enviarFacturaPorCorreo(String correoDestino, String cuerpoFactura) {
-
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", "smtp.gmail.com");
-        props.put("mail.smtp.port", "587");
-
-        Session session = Session.getInstance(props, new javax.mail.Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(CORREO_EMISOR, CLAVE_APP);
-            }
-        });
-
-        try {
-            Message mensaje = new MimeMessage(session);
-            mensaje.setFrom(new InternetAddress(CORREO_EMISOR));
-            mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(correoDestino));
-            mensaje.setSubject("Factura Electronica - Hotel");
-            mensaje.setText(cuerpoFactura);
-
-            Transport.send(mensaje);
-            System.out.println("\n Factura enviada correctamente a " + correoDestino);
-
-        } catch (MessagingException e) {
-            System.out.println("Error al enviar el correo: " + e.getMessage());
-        }
-    }
-
-    static void checkOut(String ced) {
-        throw new UnsupportedOperationException("Not supported yet.");
     }
 }
