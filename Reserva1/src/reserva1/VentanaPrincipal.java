@@ -32,6 +32,13 @@ public class VentanaPrincipal extends JFrame {
     private JLabel etiquetaRol;
     private String rolActual = "";
     private String usuarioActual = "";
+    private JPanel panelReservar;
+    private JPanel panelCancelar;
+    private JPanel panelVerReservas;
+    private JPanel panelTodas;
+    private String rolUsuario = "";
+    private JPanel panelEstado;
+    private JPanel panelCheckout;
 
     public VentanaPrincipal() {
         setTitle("Hotel PGC — Sistema de Gestión");
@@ -319,6 +326,7 @@ private void pedirClaveEmpleado() {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     usuarioActual = rs.getString("usuario");
+                    rolUsuario = rs.getString("rol");
                     dialogo.dispose();
                     entrarComo("empleado");
                 } else {
@@ -528,111 +536,67 @@ private void estilizarCampo(JTextField campo) {
         boton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         return boton;
     }
+   private void accionReservar() {
+       if (panelReservar != null) {
+           panelRaiz.remove(panelReservar);
+       }
+       panelReservar = new VentanaReservar(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelReservar, "reservar");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "reservar");
+          
+   }
+       private void accionVerReservas() {
+       if (panelVerReservas != null) {
+           panelRaiz.remove(panelVerReservas);
+       }
+       panelVerReservas = new VentanaVerReservas(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelVerReservas, "ver reservas");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "ver reservas");
+   }
+     private void accionCancelar() {
+       if (panelCancelar != null) {
+           panelRaiz.remove(panelCancelar);
+       }
+       panelCancelar = new VentanaCancelar(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelCancelar, "cancelar");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "cancelar");
+   }
 
-    private void accionReservar() { mostrarAviso("Función de reservar: por conectar."); }
-    private void accionVerReservas() {
-    JDialog dialogo = new JDialog(this, "Ver mis reservas", true);
-    dialogo.setUndecorated(true);
-
-    JPanel panel = new JPanel();
-    panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-    panel.setBackground(new Color(24, 24, 26));
-    panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(DORADO, 1),
-            new EmptyBorder(30, 30, 30, 30)
-    ));
-
-    JLabel titulo = new JLabel("VER MIS RESERVAS");
-    titulo.setFont(new Font("SansSerif", Font.BOLD, 15));
-    titulo.setForeground(DORADO);
-    titulo.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-    JLabel lblCedula = new JLabel("Cédula");
-    lblCedula.setFont(new Font("SansSerif", Font.PLAIN, 11));
-    lblCedula.setForeground(GRIS_TEXTO);
-    lblCedula.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-    JTextField campoCedula = crearCampoLogin();
-
-    JLabel lblNombre = new JLabel("Nombre completo");
-    lblNombre.setFont(new Font("SansSerif", Font.PLAIN, 11));
-    lblNombre.setForeground(GRIS_TEXTO);
-    lblNombre.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-    JTextField campoNombre = crearCampoLogin();
-
-    JButton btnBuscar = new JButton("Buscar reserva");
-    btnBuscar.setFont(new Font("SansSerif", Font.BOLD, 13));
-    btnBuscar.setForeground(OSCURO);
-    btnBuscar.setBackground(DORADO);
-    btnBuscar.setFocusPainted(false);
-    btnBuscar.setBorder(new EmptyBorder(10, 0, 10, 0));
-    btnBuscar.setAlignmentX(Component.LEFT_ALIGNMENT);
-    btnBuscar.setMaximumSize(new Dimension(280, 40));
-    btnBuscar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-    JButton btnCancelar = new JButton("Cancelar");
-    btnCancelar.setFont(new Font("SansSerif", Font.PLAIN, 12));
-    btnCancelar.setForeground(GRIS_TEXTO);
-    btnCancelar.setBackground(new Color(24, 24, 26));
-    btnCancelar.setBorder(BorderFactory.createLineBorder(new Color(80, 80, 82), 1));
-    btnCancelar.setFocusPainted(false);
-    btnCancelar.setAlignmentX(Component.LEFT_ALIGNMENT);
-    btnCancelar.setMaximumSize(new Dimension(280, 36));
-    btnCancelar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    btnCancelar.addActionListener(e -> dialogo.dispose());
-
-    btnBuscar.addActionListener(e -> {
-        String cedula = campoCedula.getText().trim();
-        String nombre = campoNombre.getText().trim();
-
-        if (cedula.isEmpty() || nombre.isEmpty()) {
-            JOptionPane.showMessageDialog(dialogo, "Completa ambos campos.", "Datos incompletos", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        new Hotel().verReserva(cedula, nombre);
-        dialogo.dispose();
-        mostrarAviso("Consulta realizada. Revisa la consola de NetBeans para ver el detalle.");
-    });
-
-    panel.add(titulo);
-    panel.add(Box.createRigidArea(new Dimension(0, 24)));
-    panel.add(lblCedula);
-    panel.add(Box.createRigidArea(new Dimension(0, 4)));
-    panel.add(campoCedula);
-    panel.add(Box.createRigidArea(new Dimension(0, 14)));
-    panel.add(lblNombre);
-    panel.add(Box.createRigidArea(new Dimension(0, 4)));
-    panel.add(campoNombre);
-    panel.add(Box.createRigidArea(new Dimension(0, 20)));
-    panel.add(btnBuscar);
-    panel.add(Box.createRigidArea(new Dimension(0, 8)));
-    panel.add(btnCancelar);
-
-    dialogo.add(panel);
-    dialogo.pack();
-    dialogo.setLocationRelativeTo(this);
-    dialogo.setVisible(true);
-}
-    private void accionCancelar() { mostrarAviso("Función de cancelar reserva: por conectar."); }
-
-    private void accionVerTodas() {
-        new Hotel().mostrarTodasReservas();
-        mostrarAviso("Revisa la consola de NetBeans para ver el listado.");
+      private void accionVerTodas() {
+       if (panelTodas != null) {
+           panelRaiz.remove(panelTodas);
+       }
+       boolean esJefe = rolUsuario.equalsIgnoreCase("Jefe");
+       panelTodas = new VentanaTodasReservas(() -> cardLayout.show(panelRaiz, "panel"), esJefe);
+       panelRaiz.add(panelTodas, "todas");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "todas");
+   
     }
 
-    private void accionEstado() {
-        new Hotel().mostrarEstado();
-        mostrarAviso("Revisa la consola de NetBeans para ver el estado.");
+       private void accionEstado() {
+       if (panelEstado != null) {
+           panelRaiz.remove(panelEstado);
+       }
+       panelEstado = new VentanaEstadoHabitaciones(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelEstado, "estado");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "estado");
+   
     }
 
-    private void accionCheckout() {
-        String cedula = JOptionPane.showInputDialog(this, "Ingrese la cédula del cliente:");
-        if (cedula != null && !cedula.isBlank()) {
-            new Hotel().hacerCheckoutManual(cedula);
-            mostrarAviso("Checkout procesado. Revisa la consola para el detalle.");
-        }
+       private void accionCheckout() {
+       if (panelCheckout != null) {
+           panelRaiz.remove(panelCheckout);
+       }
+       panelCheckout = new VentanaCheckout(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelCheckout, "checkout");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "checkout");
+   
     }
 
     private void mostrarAviso(String mensaje) {
