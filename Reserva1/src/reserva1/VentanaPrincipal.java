@@ -58,6 +58,9 @@ public class VentanaPrincipal extends JFrame {
 
         add(panelRaiz);
         cardLayout.show(panelRaiz, "rol");
+        Thread recordatorios = new Thread(() -> Main.enviarRecordatoriosCheckIn());
+        recordatorios.setDaemon(true);
+        recordatorios.start();
     }
 
     private void cargarImagenFondo() {
