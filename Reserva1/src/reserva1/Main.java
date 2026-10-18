@@ -732,7 +732,7 @@ public class Main {
     }
 
 
-    public static void mostrarFactura(int comidasElegidas, boolean clienteFrecuente) {
+    public static String mostrarFactura(int comidasElegidas, boolean clienteFrecuente) {
 
         String sql =
             "SELECT c.nombre, c.cedula, c.email, h.numero, h.tipo, h.precio AS precio_habitacion, " +
@@ -798,11 +798,13 @@ public class Main {
                     } else {
                         System.out.println("El cliente no tiene correo registrado, no se envio factura.");
                     }
+                     return factura.toString();
                 }
             }
 
         } catch (SQLException e) {
             System.out.println("Error al generar la factura: " + e.getMessage());
         }
+        return null;
     }
 }

@@ -56,6 +56,8 @@ public class VentanaReservar extends JPanel {
     private final JLabel lblExitoAviso = new JLabel(" ", SwingConstants.CENTER);
 
     private volatile String avisoFactura = "";
+    private volatile String textoFactura = "";
+      private final JPanel panelFactura = new JPanel(new BorderLayout(0, 10));
 
     private static class Opcion {
         final int id;
@@ -103,7 +105,7 @@ public class VentanaReservar extends JPanel {
         Tarjeta tarjeta = new Tarjeta();
         tarjeta.setLayout(new BorderLayout());
         tarjeta.setBorder(new EmptyBorder(26, 32, 24, 32));
-        tarjeta.setPreferredSize(new Dimension(700, 540));
+         tarjeta.setPreferredSize(new Dimension(700, 640));
 
         contenido.setOpaque(false);
         contenido.add(construirFormulario(), "form");
@@ -208,6 +210,13 @@ public class VentanaReservar extends JPanel {
         lblExitoAviso.setForeground(new Color(224, 170, 110));
         lblExitoAviso.setAlignmentX(Component.CENTER_ALIGNMENT);
 
+         panelFactura.setBackground(FONDO_CAMPO);
+        panelFactura.setBorder(BorderFactory.createCompoundBorder(
+          BorderFactory.createLineBorder(new Color(201, 168, 105, 140), 1),
+             new EmptyBorder(14, 18, 14, 18)));
+        panelFactura.setPreferredSize(new Dimension(560, 285));
+        panelFactura.setMaximumSize(new Dimension(560, 285));
+        panelFactura.setAlignmentX(Component.CENTER_ALIGNMENT);
         JButton btnVolver = new JButton("Volver al panel");
         btnVolver.setFont(new Font("SansSerif", Font.BOLD, 13));
         btnVolver.setForeground(OSCURO);
@@ -230,7 +239,9 @@ public class VentanaReservar extends JPanel {
         p.add(lblExitoCorreo);
         p.add(Box.createRigidArea(new Dimension(0, 14)));
         p.add(lblExitoAviso);
-        p.add(Box.createRigidArea(new Dimension(0, 28)));
+        p.add(Box.createRigidArea(new Dimension(0, 14)));
+        p.add(panelFactura);
+        p.add(Box.createRigidArea(new Dimension(0, 18)));
         p.add(btnVolver);
         p.add(Box.createVerticalGlue());
 
@@ -245,8 +256,130 @@ public class VentanaReservar extends JPanel {
         lblExitoFechas.setText(entrada.format(f) + "  →  " + salida.format(f));
         lblExitoCorreo.setText("La factura se envía a " + correo + ".");
         lblExitoAviso.setText(avisoFactura.isEmpty() ? " " : avisoFactura.trim());
-
+        
+       
+                 construirFactura();
         vistas.show(contenido, "exito");
+    }
+            private void construirFactura() {
+        panelFactura.removeAll();
+
+        if (textoFactura.isEmpty()) {
+            JLabel aviso = new JLabel("No se pudo mostrar la factura en pantalla.", SwingConstants.CENTER);
+            aviso.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            aviso.setForeground(GRIS_TEXTO);
+            panelFactura.add(aviso, BorderLayout.CENTER);
+            panelFactura.revalidate();
+            panelFactura.repaint();
+            return;
+        }
+
+        java.util.Map<String, String> datos = new java.util.LinkedHashMap<>();
+        for (String linea : textoFactura.split("\n")) {
+            int i = linea.indexOf(": ");
+            if (i > 0) {
+                datos.put(linea.substring(0, i).trim(), linea.substring(i + 2).trim());
+            }
+        }
+
+        JPanel izquierda = nuevaColumna();
+        agregarFila(izquierda, "Cliente", datos.get("Cliente"));
+        agregarFila(izquierda, "Cédula", datos.get("Cedula"));
+        agregarFila(izquierda, "Habitación", datos.get("Habitacion"));
+        agregarFila(izquierda, "Entrada", fechaBonita(datos.get("Entrada")));
+        agregarFila(izquierda, "Salida", fechaBonita(datos.get("Salida")));
+
+        String descuento = datos.get("Descuento aplicado");
+        String motivo = "";
+        if (descuento != null && descuento.contains("(") && descuento.contains(")")) {
+            motivo = descuento.substring(descuento.indexOf("(") + 1, descuento.lastIndexOf(")"));
+        }
+
+        JPanel derecha = nuevaColumna();
+        agregarFila(derecha, "Precio habitación", dinero(datos.get("Precio habitacion")));
+        agregarFila(derecha, "Consumo restaurante", dinero(datos.get("Consumo restaurante")));
+        agregarFila(derecha, "Subtotal", dinero(datos.get("Subtotal")));
+        if (descuento != null) {
+            agregarFila(derecha, "Descuento", dinero(descuento));
+        }
+
+        JPanel columnas = new JPanel(new GridLayout(1, 2, 30, 0));
+        columnas.setOpaque(false);
+        columnas.add(izquierda);
+        columnas.add(derecha);
+
+        JLabel titulo = new JLabel("FACTURA");
+        titulo.setFont(new Font("SansSerif", Font.BOLD, 11));
+        titulo.setForeground(DORADO);
+
+        JPanel barraTotal = new JPanel(new BorderLayout());
+        barraTotal.setBackground(DORADO);
+        barraTotal.setBorder(new EmptyBorder(10, 16, 10, 16));
+        JLabel lblTotalTexto = new JLabel("TOTAL A PAGAR");
+        lblTotalTexto.setFont(new Font("SansSerif", Font.BOLD, 13));
+        lblTotalTexto.setForeground(OSCURO);
+        JLabel lblTotalValor = new JLabel(dinero(datos.get("TOTAL A PAGAR")));
+        lblTotalValor.setFont(new Font("Serif", Font.BOLD, 22));
+        lblTotalValor.setForeground(OSCURO);
+        barraTotal.add(lblTotalTexto, BorderLayout.WEST);
+        barraTotal.add(lblTotalValor, BorderLayout.EAST);
+
+        JPanel sur = new JPanel(new BorderLayout(0, 6));
+        sur.setOpaque(false);
+        if (!motivo.isEmpty()) {
+            JLabel lblMotivo = new JLabel("Descuento aplicado: " + motivo);
+            lblMotivo.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            lblMotivo.setForeground(GRIS_TEXTO);
+            sur.add(lblMotivo, BorderLayout.NORTH);
+        }
+        sur.add(barraTotal, BorderLayout.CENTER);
+
+        panelFactura.add(titulo, BorderLayout.NORTH);
+        panelFactura.add(columnas, BorderLayout.CENTER);
+        panelFactura.add(sur, BorderLayout.SOUTH);
+        panelFactura.revalidate();
+        panelFactura.repaint();
+    }
+
+    private void agregarFila(JPanel columna, String etiqueta, String valor) {
+        JPanel fila = new JPanel(new BorderLayout(10, 0));
+        fila.setOpaque(false);
+        fila.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+
+        JLabel l = new JLabel(etiqueta);
+        l.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        l.setForeground(GRIS_TEXTO);
+
+        JLabel v = new JLabel(valor == null ? "-" : valor);
+        v.setFont(new Font("SansSerif", Font.BOLD, 13));
+        v.setForeground(BLANCO_HUESO);
+
+        fila.add(l, BorderLayout.WEST);
+        fila.add(v, BorderLayout.EAST);
+        columna.add(fila);
+        columna.add(Box.createRigidArea(new Dimension(0, 4)));
+    }
+
+    private static String dinero(String texto) {
+        if (texto == null) {
+            return "-";
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(-?)\\$(\\d+(?:\\.\\d+)?(?:E\\d+)?)").matcher(texto);
+        if (!m.find()) {
+            return texto;
+        }
+        double valor = Double.parseDouble(m.group(2));
+        return m.group(1) + "$" + String.format("%,.0f", valor);
+    }
+
+    private static String fechaBonita(String texto) {
+        try {
+            return LocalDate.parse(texto).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        } catch (Exception e) {
+            return texto;
+        }
+    
     }
 
     private JPanel nuevaColumna() {
@@ -536,7 +669,8 @@ public class VentanaReservar extends JPanel {
         }
 
         try {
-            Main.mostrarFactura(comidas, Main.esClienteFrecuente(idCliente));
+            String facturaTexto = Main.mostrarFactura(comidas, Main.esClienteFrecuente(idCliente));
+            textoFactura = (facturaTexto == null) ? "" : facturaTexto;
         } catch (Throwable t) {
             avisoFactura = "Ojo: no se pudo enviar la factura por correo (" + t.getMessage() + ").";
         }
