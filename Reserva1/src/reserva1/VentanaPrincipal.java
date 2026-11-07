@@ -1,4 +1,3 @@
-
 package reserva1;
 
 
@@ -39,6 +38,7 @@ public class VentanaPrincipal extends JFrame {
     private String rolUsuario = "";
     private JPanel panelEstado;
     private JPanel panelCheckout;
+    private JPanel panelBuscarHab;
 
     public VentanaPrincipal() {
         setTitle("Hotel PGC — Sistema de Gestión");
@@ -471,6 +471,7 @@ private void estilizarCampo(JTextField campo) {
             agregarBoton("reservar", "Reservar habitación", "Nueva estadía", this::accionReservar);
             agregarBoton("buscar", "Ver mis reservas", "Consultar reserva", this::accionVerReservas);
             agregarBoton("cancelar", "Cancelar reserva", "Gestionar cancelación", this::accionCancelar);
+            agregarBoton("buscar", "Buscar habitaciones", "Filtrar por precio y tipo", this::accionBuscarHabitaciones);
 
         } else {
             etiquetaRol.setText("  " + usuarioActual);
@@ -483,6 +484,7 @@ private void estilizarCampo(JTextField campo) {
             agregarBoton("lista", "Todas las reservas", "Listado general", this::accionVerTodas);
             agregarBoton("puerta", "Estado de habitaciones", "Disponibilidad actual", this::accionEstado);
             agregarBoton("checkout", "Hacer checkout", "Registrar salida", this::accionCheckout);
+            agregarBoton("buscar", "Buscar habitaciones", "Filtrar por precio y tipo", this::accionBuscarHabitaciones);
         }
 
         panelBotones.revalidate();
@@ -599,7 +601,17 @@ private void estilizarCampo(JTextField campo) {
        panelRaiz.add(panelCheckout, "checkout");
        panelRaiz.revalidate();
        cardLayout.show(panelRaiz, "checkout");
-   
+
+    }
+
+       private void accionBuscarHabitaciones() {
+       if (panelBuscarHab != null) {
+           panelRaiz.remove(panelBuscarHab);
+       }
+       panelBuscarHab = new VentanaBuscarHabitaciones(() -> cardLayout.show(panelRaiz, "panel"));
+       panelRaiz.add(panelBuscarHab, "buscarhab");
+       panelRaiz.revalidate();
+       cardLayout.show(panelRaiz, "buscarhab");
     }
 
     private void mostrarAviso(String mensaje) {
@@ -615,5 +627,3 @@ private void estilizarCampo(JTextField campo) {
         SwingUtilities.invokeLater(() -> new VentanaPrincipal().setVisible(true));
     }
 }
-    
-

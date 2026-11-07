@@ -39,6 +39,8 @@ public class VentanaReservar extends JPanel {
     private final JComboBox<Opcion> cbDesayuno = new JComboBox<>();
     private final JComboBox<Opcion> cbAlmuerzo = new JComboBox<>();
     private final JComboBox<Opcion> cbCena = new JComboBox<>();
+    private final JComboBox<String> cbMedioPago = new JComboBox<>(
+        new String[]{"Efectivo", "Tarjeta de credito", "Tarjeta debito", "Transferencia bancaria"});
 
     private final JTextField tfNombre = new JTextField();
     private final JTextField tfCedula = new JTextField();
@@ -136,6 +138,7 @@ public class VentanaReservar extends JPanel {
         agregar(izquierda, "Nombre completo", estilizarCampo(tfNombre));
         agregar(izquierda, "Cédula", estilizarCampo(tfCedula));
         agregar(izquierda, "Correo electrónico (para la factura)", estilizarCampo(tfCorreo));
+        agregar(izquierda, "Medio de pago", estilizarCombo(cbMedioPago));
 
         JPanel derecha = nuevaColumna();
         agregar(derecha, "Fecha de entrada (dd/mm/aaaa)", estilizarCampo(tfEntrada));
@@ -296,12 +299,18 @@ public class VentanaReservar extends JPanel {
         }
 
         JPanel derecha = nuevaColumna();
-        agregarFila(derecha, "Precio habitación", dinero(datos.get("Precio habitacion")));
+        String noches = datos.get("Noches");
+        String etiquetaHab = "Habitación";
+        if (noches != null) {
+            etiquetaHab = "Habitación (" + noches + (noches.equals("1") ? " noche)" : " noches)");
+        }
+        agregarFila(derecha, etiquetaHab, dinero(datos.get("Total habitacion")));
         agregarFila(derecha, "Consumo restaurante", dinero(datos.get("Consumo restaurante")));
         agregarFila(derecha, "Subtotal", dinero(datos.get("Subtotal")));
         if (descuento != null) {
             agregarFila(derecha, "Descuento", dinero(descuento));
         }
+        agregarFila(derecha, "Pago", datos.get("Medio de pago"));
 
         JPanel columnas = new JPanel(new GridLayout(1, 2, 30, 0));
         columnas.setOpaque(false);
@@ -416,7 +425,7 @@ public class VentanaReservar extends JPanel {
         return campo;
     }
 
-    private JComboBox<Opcion> estilizarCombo(JComboBox<Opcion> combo) {
+    private <T> JComboBox<T> estilizarCombo(JComboBox<T> combo) {
         combo.setFont(new Font("SansSerif", Font.PLAIN, 13));
         combo.setForeground(BLANCO_HUESO);
         combo.setBackground(FONDO_CAMPO);
@@ -535,6 +544,7 @@ public class VentanaReservar extends JPanel {
 
         final int idHab = hab.id;
         final String textoHab = hab.texto;
+        final String medio = (String) cbMedioPago.getSelectedItem();
         final int[] menus = {
             ((Opcion) cbDesayuno.getSelectedItem()).id,
             ((Opcion) cbAlmuerzo.getSelectedItem()).id,
@@ -549,7 +559,7 @@ public class VentanaReservar extends JPanel {
         new SwingWorker<Integer, Void>() {
             @Override
             protected Integer doInBackground() throws Exception {
-                return procesarReserva(nombre, cedula, correo, idHab, fEntrada, fSalida, menus);
+                return procesarReserva(nombre, cedula, correo, idHab, fEntrada, fSalida, menus, medio);
             }
 
             @Override
@@ -605,7 +615,7 @@ public class VentanaReservar extends JPanel {
     }
 
     private int procesarReserva(String nombre, String cedula, String correo, int idHab,
-                                LocalDate entrada, LocalDate salida, int[] menus) throws Exception {
+                                LocalDate entrada, LocalDate salida, int[] menus, String medio) throws Exception {
 
         verificarCedula(cedula, nombre);
 
@@ -659,6 +669,8 @@ public class VentanaReservar extends JPanel {
 
         Main.idReserva = idNueva;
         Main.idCliente = idCliente;
+        Main.medioPago = medio;
+        Main.guardarMedioPago(medio);
 
         int comidas = 0;
         for (int idMenu : menus) {

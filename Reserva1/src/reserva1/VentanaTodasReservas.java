@@ -28,7 +28,7 @@ public class VentanaTodasReservas extends JPanel {
     private static final Color BORDE_CAMPO = new Color(80, 80, 82);
     private static final Color AVISO = new Color(224, 170, 110);
 
-    private static final String[] COLUMNAS = {"Reserva", "Cliente", "Cédula", "Habitación", "Entrada", "Salida", "Estado"};
+    private static final String[] COLUMNAS = {"Reserva", "Cliente", "Cédula", "Habitación", "Entrada", "Salida", "Estado", "Pago"};
     private static final int COL_ESTADO = 6;
 
     private static final DateTimeFormatter VISIBLE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -306,7 +306,7 @@ public class VentanaTodasReservas extends JPanel {
         };
         tabla.setDefaultRenderer(Object.class, celdas);
 
-        int[] anchos = {70, 170, 105, 150, 95, 95, 100};
+        int[] anchos = {60, 150, 95, 140, 90, 90, 95, 110};
         for (int i = 0; i < anchos.length; i++) {
             tabla.getColumnModel().getColumn(i).setPreferredWidth(anchos[i]);
         }
@@ -474,7 +474,7 @@ public class VentanaTodasReservas extends JPanel {
 
         String sql =
             "SELECT r.id_reserva, c.nombre, c.cedula, h.numero, h.tipo, " +
-            "       r.fecha_entrada, r.fecha_salida, r.estado " +
+            "       r.fecha_entrada, r.fecha_salida, r.estado, r.medio_pago " +
             "FROM Reservas r " +
             "JOIN Clientes c ON r.id_cliente = c.id_cliente " +
             "JOIN Habitaciones h ON r.id_habitacion = h.id_habitacion " +
@@ -501,7 +501,8 @@ public class VentanaTodasReservas extends JPanel {
                         "Hab " + rs.getInt("numero") + " — " + rs.getString("tipo"),
                         entrada.format(VISIBLE),
                         salida.format(VISIBLE),
-                        estado
+                        estado,
+                        rs.getString("medio_pago") == null ? "-" : rs.getString("medio_pago")
                     };
                     lista.add(new Fila(id, estado, entrada, salida, celdas));
                 }
