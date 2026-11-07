@@ -38,6 +38,7 @@ public class Main {
     static int idCliente;
 
     static int idReserva;
+    static String medioPago;
 
     static String nombreUsuarioActual;
     static String rolUsuarioActual;
@@ -46,17 +47,13 @@ public class Main {
 
     // Datos para el envio de correo (reemplaza con los tuyos)
     private static final String CORREO_EMISOR = "hotelpgc2824@gmail.com";
-    private static final String CLAVE_APP = "zugbdddefyfghany";
+    private static final String CLAVE_APP = "zugb ddde fyfg hany";
+
 
     private static final String URL =
         "jdbc:sqlserver://localhost:1433;databaseName=HotelReserva;encrypt=true;trustServerCertificate=true";
     private static final String USUARIO = "hotelapp";
-    private static final String PASSWORD = obtenerPasswordBD();
-
-    private static String obtenerPasswordBD() {
-        String p = System.getenv("HOTEL_DB_PASSWORD");
-        return (p == null || p.isBlank()) ? "HotelApp2026!" : p;
-    }
+    private static final String PASSWORD = "HotelApp2026!";
 
     public static Connection conectar() {
         try {
@@ -175,8 +172,6 @@ public class Main {
                 return null;
             }
 
-            texto = texto.replace("$", "").replace(".", "").replace(",", "").replace(" ", "");
-
             try {
                 return Double.parseDouble(texto);
             } catch (NumberFormatException e) {
@@ -194,7 +189,7 @@ public class Main {
             "JOIN Habitaciones h ON r.id_habitacion = h.id_habitacion " +
             "WHERE r.estado = 'Confirmada' " +
             "AND r.fecha_entrada = CAST(DATEADD(day, 1, GETDATE()) AS DATE) " +
-            "AND ISNULL(r.recordatorio_enviado, 0) = 0";
+            "AND r.recordatorio_enviado = 0";
 
         try (Connection con = conectar();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -213,15 +208,12 @@ public class Main {
                     "Habitacion: " + rs.getInt("numero") + " (" + rs.getString("tipo") + ")\n\n" +
                     "Te esperamos!";
 
-                if (enviarRecordatorioPorCorreo(email, mensaje)) {
-                    marcarRecordatorioEnviado(rs.getInt("id_reserva"));
-                }
+                enviarRecordatorioPorCorreo(email, mensaje);
+                marcarRecordatorioEnviado(rs.getInt("id_reserva"));
             }
 
         } catch (SQLException e) {
             System.out.println("Error al enviar recordatorios: " + e.getMessage());
-        } catch (NullPointerException e) {
-            System.out.println("No se pudo consultar recordatorios (sin conexion a la base de datos).");
         }
     }
 
@@ -240,17 +232,13 @@ public class Main {
         }
     }
 
-    private static boolean enviarCorreo(String correoDestino, String asunto, String cuerpo) {
+    public static void enviarRecordatorioPorCorreo(String correoDestino, String cuerpoMensaje) {
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.host", "smtp.gmail.com");
         props.put("mail.smtp.port", "587");
-        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
-        props.put("mail.smtp.ssl.protocols", "TLSv1.2");
-        props.put("mail.smtp.connectiontimeout", "10000");
-        props.put("mail.smtp.timeout", "10000");
 
         Session session = Session.getInstance(props, new javax.mail.Authenticator() {
             protected PasswordAuthentication getPasswordAuthentication() {
@@ -262,28 +250,15 @@ public class Main {
             Message mensaje = new MimeMessage(session);
             mensaje.setFrom(new InternetAddress(CORREO_EMISOR));
             mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(correoDestino));
-            mensaje.setSubject(asunto);
-            mensaje.setText(cuerpo);
+            mensaje.setSubject("Recordatorio de Check-in - Hotel PGC");
+            mensaje.setText(cuerpoMensaje);
 
             Transport.send(mensaje);
-            return true;
+            System.out.println("Recordatorio enviado a " + correoDestino);
 
         } catch (MessagingException e) {
-            System.out.println("Error al enviar el correo a " + correoDestino + ": " + e.getMessage());
-            return false;
+            System.out.println("Error al enviar el recordatorio: " + e.getMessage());
         }
-    }
-
-    public static boolean enviarRecordatorioPorCorreo(String correoDestino, String cuerpoMensaje) {
-        return enviarCorreo(correoDestino, "Recordatorio de Check-in - Hotel PGC", cuerpoMensaje);
-    }
-
-    public static boolean enviarFacturaPorCorreo(String correoDestino, String cuerpoFactura) {
-        boolean ok = enviarCorreo(correoDestino, "Factura Electronica - Hotel", cuerpoFactura);
-        if (ok) {
-            System.out.println("\n Factura enviada correctamente a " + correoDestino);
-        }
-        return ok;
     }
 
     // ================= MENU EMPLEADOS (requiere sesion) =================
@@ -421,15 +396,9 @@ public class Main {
 
     public static int leerNumero() {
         while (true) {
-            String texto = sc.nextLine().trim();
-
-            if (texto.isEmpty()) {
-                continue;
-            }
-
             try {
-                return Integer.parseInt(texto);
-            } catch (NumberFormatException e) {
+                return Integer.parseInt(sc.nextLine());
+            } catch (Exception e) {
                 System.out.print(" Ese valor no es un numero valido, intenta de nuevo: ");
             }
         }
@@ -543,7 +512,7 @@ public class Main {
         cedula = sc.nextLine();
 
         System.out.print("Correo electronico: ");
-        correo = sc.nextLine().trim();
+        correo = sc.nextLine();
 
         idCliente = buscarOCrearCliente(nombre, cedula, correo);
     }
@@ -564,10 +533,9 @@ public class Main {
                         int idExistente = rs.getInt("id_cliente");
                         String correoGuardado = rs.getString("email");
 
-                        boolean correoNuevo = correo != null && !correo.isBlank()
-                                && (correoGuardado == null || !correoGuardado.equalsIgnoreCase(correo));
+                        if ((correoGuardado == null || correoGuardado.isBlank())
+                                && correo != null && !correo.isBlank()) {
 
-                        if (correoNuevo) {
                             try (PreparedStatement psUpdate = con.prepareStatement(actualizarCorreo)) {
                                 psUpdate.setString(1, correo);
                                 psUpdate.setInt(2, idExistente);
@@ -605,8 +573,13 @@ public class Main {
         String entrada = leerFecha("\nFecha de entrada (ej: 2026-10-07, 07/10/2026 o 07-10-2026): ");
         String salida = leerFecha("Fecha de salida (mismo formato): ");
 
-        String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado, recordatorio_enviado) "
-                         + "VALUES (?, ?, ?, ?, 'Confirmada', 0)";
+        while (java.time.LocalDate.parse(salida).isBefore(java.time.LocalDate.parse(entrada))) {
+            System.out.println(" La fecha de salida no puede ser anterior a la de entrada. Intenta de nuevo.");
+            salida = leerFecha("Fecha de salida (mismo formato): ");
+        }
+
+        String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado) "
+                         + "VALUES (?, ?, ?, ?, 'Confirmada')";
         String actualizar = "UPDATE Habitaciones SET disponible = 0 WHERE id_habitacion = ?";
 
         try (Connection con = conectar()) {
@@ -646,7 +619,48 @@ public class Main {
 
         boolean clienteFrecuente = esClienteFrecuente(idCliente);
 
+        pedirMedioPago();
+
         mostrarFactura(comidasElegidas, clienteFrecuente);
+    }
+
+    public static void pedirMedioPago() {
+
+        String[] opciones = {"Efectivo", "Tarjeta de credito", "Tarjeta debito", "Transferencia bancaria"};
+
+        while (true) {
+
+            System.out.println("\nMEDIO DE PAGO:");
+            for (int i = 0; i < opciones.length; i++) {
+                System.out.println((i + 1) + ". " + opciones[i]);
+            }
+            System.out.print("Elige una opcion: ");
+            int op = leerNumero();
+
+            if (op >= 1 && op <= opciones.length) {
+                medioPago = opciones[op - 1];
+                guardarMedioPago(medioPago);
+                return;
+            }
+
+            System.out.println(" Opcion invalida. Elige un numero de la lista.");
+        }
+    }
+
+    public static void guardarMedioPago(String medio) {
+
+        String sql = "UPDATE Reservas SET medio_pago = ? WHERE id_reserva = ?";
+
+        try (Connection con = conectar();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, medio);
+            ps.setInt(2, idReserva);
+            ps.executeUpdate();
+
+        } catch (SQLException e) {
+            System.out.println("Error al guardar el medio de pago: " + e.getMessage());
+        }
     }
 
 
@@ -754,7 +768,16 @@ public class Main {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     double totalConsumo = rs.getDouble("total_consumo");
-                    double precioHab = rs.getDouble("precio_habitacion");
+                    double precioNoche = rs.getDouble("precio_habitacion");
+
+                    long noches = java.time.temporal.ChronoUnit.DAYS.between(
+                        rs.getDate("fecha_entrada").toLocalDate(),
+                        rs.getDate("fecha_salida").toLocalDate());
+                    if (noches < 1) {
+                        noches = 1;
+                    }
+
+                    double precioHab = precioNoche * noches;
                     double subtotal = precioHab + totalConsumo;
 
                     double descuento = 0;
@@ -780,7 +803,9 @@ public class Main {
                     factura.append("Habitacion: ").append(rs.getInt("numero")).append(" (").append(rs.getString("tipo")).append(")\n");
                     factura.append("Entrada: ").append(rs.getDate("fecha_entrada")).append("\n");
                     factura.append("Salida: ").append(rs.getDate("fecha_salida")).append("\n");
-                    factura.append("Precio habitacion: $").append(precioHab).append("\n");
+                    factura.append("Precio por noche: $").append(precioNoche).append("\n");
+                    factura.append("Noches: ").append(noches).append("\n");
+                    factura.append("Total habitacion: $").append(precioHab).append("\n");
                     factura.append("Consumo restaurante: $").append(totalConsumo).append("\n");
                     factura.append("Subtotal: $").append(subtotal).append("\n");
 
@@ -788,6 +813,7 @@ public class Main {
                         factura.append("Descuento aplicado: -$").append(descuento).append(" (").append(motivo.trim()).append(")\n");
                     }
 
+                    factura.append("Medio de pago: ").append(medioPago).append("\n");
                     factura.append("TOTAL A PAGAR: $").append(total).append("\n");
                     factura.append("===========================\n");
 
@@ -798,13 +824,48 @@ public class Main {
                     } else {
                         System.out.println("El cliente no tiene correo registrado, no se envio factura.");
                     }
-                     return factura.toString();
+
+                    return factura.toString();
                 }
             }
 
         } catch (SQLException e) {
             System.out.println("Error al generar la factura: " + e.getMessage());
         }
-        return null;
+
+        return "";
+    }
+
+    public static void enviarFacturaPorCorreo(String correoDestino, String cuerpoFactura) {
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+
+        Session session = Session.getInstance(props, new javax.mail.Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(CORREO_EMISOR, CLAVE_APP);
+            }
+        });
+
+        try {
+            Message mensaje = new MimeMessage(session);
+            mensaje.setFrom(new InternetAddress(CORREO_EMISOR));
+            mensaje.setRecipients(Message.RecipientType.TO, InternetAddress.parse(correoDestino));
+            mensaje.setSubject("Factura Electronica - Hotel");
+            mensaje.setText(cuerpoFactura);
+
+            Transport.send(mensaje);
+            System.out.println("\n Factura enviada correctamente a " + correoDestino);
+
+        } catch (MessagingException e) {
+            System.out.println("Error al enviar el correo: " + e.getMessage());
+        }
+    }
+
+    static void checkOut(String ced) {
+        throw new UnsupportedOperationException("Not supported yet.");
     }
 }
