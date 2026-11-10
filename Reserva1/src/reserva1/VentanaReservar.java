@@ -107,7 +107,7 @@ public class VentanaReservar extends JPanel {
         Tarjeta tarjeta = new Tarjeta();
         tarjeta.setLayout(new BorderLayout());
         tarjeta.setBorder(new EmptyBorder(26, 32, 24, 32));
-         tarjeta.setPreferredSize(new Dimension(700, 640));
+        tarjeta.setPreferredSize(new Dimension(700, 640));
 
         contenido.setOpaque(false);
         contenido.add(construirFormulario(), "form");
@@ -115,6 +115,9 @@ public class VentanaReservar extends JPanel {
         tarjeta.add(contenido, BorderLayout.CENTER);
 
         add(tarjeta);
+        
+        tfEntrada.addActionListener(e -> cargarHabitaciones());
+        tfSalida.addActionListener(e -> cargarHabitaciones());
 
         cargarHabitaciones();
         cargarMenu(cbDesayuno, "Desayuno");
@@ -143,6 +146,20 @@ public class VentanaReservar extends JPanel {
         JPanel derecha = nuevaColumna();
         agregar(derecha, "Fecha de entrada (dd/mm/aaaa)", estilizarCampo(tfEntrada));
         agregar(derecha, "Fecha de salida (dd/mm/aaaa)", estilizarCampo(tfSalida));
+        JButton btnVerHab = new JButton("Actualizar habitaciones");
+       btnVerHab.setFont(new Font("SansSerif", Font.PLAIN, 12));
+       btnVerHab.setForeground(GRIS_TEXTO);
+       btnVerHab.setBackground(new Color(24, 24, 26));
+       btnVerHab.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(BORDE_CAMPO, 1),
+        new EmptyBorder(8, 14, 8, 14)));
+       btnVerHab.setFocusPainted(false);
+       btnVerHab.setCursor(new Cursor(Cursor.HAND_CURSOR));
+       btnVerHab.setAlignmentX(Component.LEFT_ALIGNMENT);
+       btnVerHab.setMaximumSize(new Dimension(300, 36));
+       btnVerHab.addActionListener(e -> cargarHabitaciones());
+       derecha.add(btnVerHab);
+       derecha.add(Box.createRigidArea(new Dimension(0, 14)));
         agregar(derecha, "Desayuno", estilizarCombo(cbDesayuno));
         agregar(derecha, "Almuerzo", estilizarCombo(cbAlmuerzo));
         agregar(derecha, "Cena", estilizarCombo(cbCena));
@@ -433,40 +450,63 @@ public class VentanaReservar extends JPanel {
         combo.putClientProperty("FlatLaf.style",
                 "buttonBackground: #222224; buttonArrowColor: #C9A869");
         return combo;
+        
+        
+    }
+private void cargarHabitaciones() {
+    cbHabitacion.removeAllItems();
+    lblError.setText(" ");
+
+    LocalDate entrada = parsearFecha(tfEntrada.getText().trim());
+    LocalDate salida = parsearFecha(tfSalida.getText().trim());
+
+    if (entrada == null || salida == null || !salida.isAfter(entrada)) {
+        mostrarError("Escribe fechas válidas para ver las habitaciones disponibles.");
+        btnConfirmar.setEnabled(false);
+        return;
     }
 
-    private void cargarHabitaciones() {
-        String sql = "SELECT id_habitacion, numero, tipo, precio FROM Habitaciones "
-                   + "WHERE disponible = 1 ORDER BY numero";
+    String sql =
+        "SELECT h.id_habitacion, h.numero, h.tipo, h.precio FROM Habitaciones h " +
+        "WHERE NOT EXISTS (SELECT 1 FROM Reservas r " +
+        "WHERE r.id_habitacion = h.id_habitacion " +
+        "AND r.estado = 'Confirmada' " +
+        "AND r.fecha_entrada < ? AND r.fecha_salida > ?) " +
+        "ORDER BY h.numero";
 
-        try (Connection con = Main.conectar()) {
-            if (con == null) {
-                lblError.setText("No hay conexión con la base de datos.");
-                btnConfirmar.setEnabled(false);
-                return;
-            }
+    try (Connection con = Main.conectar()) {
+        if (con == null) {
+            mostrarError("No hay conexión con la base de datos.");
+            btnConfirmar.setEnabled(false);
+            return;
+        }
 
-            try (PreparedStatement ps = con.prepareStatement(sql);
-                 ResultSet rs = ps.executeQuery()) {
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setDate(1, Date.valueOf(salida));
+            ps.setDate(2, Date.valueOf(entrada));
 
+            try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String texto = "Hab " + rs.getInt("numero") + " — " + rs.getString("tipo")
                             + " — $" + String.format("%,.0f", rs.getDouble("precio"));
                     cbHabitacion.addItem(new Opcion(rs.getInt("id_habitacion"), texto));
                 }
             }
-
-        } catch (SQLException e) {
-            lblError.setText("Error al consultar habitaciones.");
-            btnConfirmar.setEnabled(false);
-            return;
         }
 
-        if (cbHabitacion.getItemCount() == 0) {
-            lblError.setText("En este momento no hay habitaciones disponibles.");
-            btnConfirmar.setEnabled(false);
-        }
+    } catch (SQLException e) {
+        mostrarError("Error al consultar habitaciones.");
+        btnConfirmar.setEnabled(false);
+        return;
     }
+
+    if (cbHabitacion.getItemCount() == 0) {
+        mostrarError("No hay habitaciones disponibles en esas fechas.");
+        btnConfirmar.setEnabled(false);
+    } else {
+        btnConfirmar.setEnabled(true);
+    }
+}
 
     private void cargarMenu(JComboBox<Opcion> combo, String tipo) {
         combo.addItem(new Opcion(-1, "Ninguno"));
@@ -573,6 +613,8 @@ public class VentanaReservar extends JPanel {
                     mostrarError(msg);
                     btnConfirmar.setEnabled(true);
                     btnConfirmar.setText("Confirmar reserva");
+                    
+                    cargarHabitaciones();
                 }
             }
         }.execute();
@@ -633,13 +675,21 @@ public class VentanaReservar extends JPanel {
 
             con.setAutoCommit(false);
             try {
-                try (PreparedStatement ps = con.prepareStatement(
-                        "UPDATE Habitaciones SET disponible = 0 WHERE id_habitacion = ? AND disponible = 1")) {
-                    ps.setInt(1, idHab);
-                    if (ps.executeUpdate() != 1) {
-                        throw new IllegalStateException("Esa habitación ya no está disponible. Elige otra.");
-                    }
-                }
+               String choque =
+               "SELECT 1 FROM Reservas WITH (UPDLOCK, HOLDLOCK) " +
+        "WHERE id_habitacion = ? AND estado = 'Confirmada' " +
+    "AND fecha_entrada < ? AND fecha_salida > ?";
+
+    try (PreparedStatement ps = con.prepareStatement(choque)) {
+    ps.setInt(1, idHab);
+    ps.setDate(2, Date.valueOf(salida));
+    ps.setDate(3, Date.valueOf(entrada));
+    try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+            throw new IllegalStateException("Esa habitación ya está reservada en esas fechas. Elige otra.");
+        }
+    }
+}
 
                 String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado, recordatorio_enviado) "
                                 + "VALUES (?, ?, ?, ?, 'Confirmada', 0)";

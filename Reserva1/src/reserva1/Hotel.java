@@ -33,25 +33,25 @@ public class Hotel {
         if (!hay) System.out.println("No hay habitaciones disponibles.");
     }
 
-    public void buscarConFiltros(Double precioMin, Double precioMax, String tipo) {
-        System.out.println("\n== RESULTADOS DE BUSQUEDA ==");
-        boolean hay = false;
-        for (Habitacion h : habitaciones) {
-            if (!h.isDisponible()) continue;
-            if (precioMin != null && h.getPrecio() < precioMin) continue;
-            if (precioMax != null && h.getPrecio() > precioMax) continue;
-            if (tipo != null && !h.getTipo().equalsIgnoreCase(tipo)) continue;
+   public void buscarConFiltros(Double precioMin, Double precioMax, String tipo,
+                             String entrada, String salida) {
+    System.out.println("\n== RESULTADOS DE BUSQUEDA ==");
+    boolean hay = false;
+    for (Habitacion h : Habitacion.cargarDisponibles(entrada, salida)) {
+        if (precioMin != null && h.getPrecio() < precioMin) continue;
+        if (precioMax != null && h.getPrecio() > precioMax) continue;
+        if (tipo != null && !h.getTipo().equalsIgnoreCase(tipo)) continue;
 
-            System.out.println(
-                "Num: " + h.getNumero() +
-                " | Tipo: " + h.getTipo() +
-                " | Piso: " + h.getPiso() +
-                " | Precio: $" + h.getPrecio()
-            );
-            hay = true;
-        }
-        if (!hay) System.out.println("No hay habitaciones que coincidan con los filtros.");
+        System.out.println(
+            "Num: " + h.getNumero() +
+            " | Tipo: " + h.getTipo() +
+            " | Piso: " + h.getPiso() +
+            " | Precio: $" + h.getPrecio()
+        );
+        hay = true;
     }
+    if (!hay) System.out.println("No hay habitaciones que coincidan con los filtros.");
+}
 
     public void mostrarEstado() {
         System.out.println("\n== ESTADO DE HABITACIONES ==");
@@ -67,21 +67,17 @@ public class Hotel {
     }
 
     public void hacerReserva(Cliente cliente, int numHab, String entrada, String salida) {
-        for (Habitacion h : habitaciones) {
-            if (h.getNumero() == numHab) {
-                if (h.isDisponible()) {
-                    Reserva1 r = Reserva1.crear(cliente, h, entrada, salida);
-                    if (r != null) {
-                        System.out.println("\nReserva realizada con exito! (ID " + r.getIdReserva() + ")");
-                    }
-                } else {
-                    System.out.println("Esa habitacion no esta disponible.");
-                }
-                return;
+    for (Habitacion h : habitaciones) {
+        if (h.getNumero() == numHab) {
+            Reserva1 r = Reserva1.crear(cliente, h, entrada, salida);
+            if (r != null) {
+                System.out.println("\nReserva realizada con exito! (ID " + r.getIdReserva() + ")");
             }
+            return;
         }
-        System.out.println("No existe esa habitacion.");
     }
+    System.out.println("No existe esa habitacion.");
+}
 
     public void verReserva(String cedula, String nombreCompleto) {
         List<Reserva1> reservas = buscarReservasPorCedulaYNombre(cedula, nombreCompleto);

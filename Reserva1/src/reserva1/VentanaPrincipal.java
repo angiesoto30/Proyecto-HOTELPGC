@@ -479,12 +479,9 @@ private void estilizarCampo(JTextField campo) {
             descPanel.setText("Control total de reservas y habitaciones.");
 
             agregarBoton("reservar", "Reservar habitación", "Nueva estadía", this::accionReservar);
-            agregarBoton("buscar", "Ver mis reservas", "Consultar reserva", this::accionVerReservas);
-            agregarBoton("cancelar", "Cancelar reserva", "Gestionar cancelación", this::accionCancelar);
-            agregarBoton("lista", "Todas las reservas", "Listado general", this::accionVerTodas);
-            agregarBoton("puerta", "Estado de habitaciones", "Disponibilidad actual", this::accionEstado);
-            agregarBoton("checkout", "Hacer checkout", "Registrar salida", this::accionCheckout);
-            agregarBoton("buscar", "Buscar habitaciones", "Filtrar por precio y tipo", this::accionBuscarHabitaciones);
+            agregarBoton("buscar", "Buscar habitaciones", "Filtrar por fechas, precio y tipo", this::accionBuscarHabitaciones);
+            agregarBoton("lista", "Todas las reservas", "Ver, cancelar y hacer checkout", this::accionVerTodas);
+            agregarBoton("puerta", "Estado de habitaciones", "Ocupación de hoy", this::accionEstado);
         }
 
         panelBotones.revalidate();

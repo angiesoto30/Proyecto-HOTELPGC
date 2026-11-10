@@ -42,6 +42,8 @@ public class Main {
 
     static String nombreUsuarioActual;
     static String rolUsuarioActual;
+    static String fechaEntrada;
+    static String fechaSalida;
 
     private static final String ROL_ADMIN = "Jefe";
 
@@ -118,13 +120,15 @@ public class Main {
             int op = leerNumero();
 
             if (op == 1) {
+               
+                pedirFechas();
                 boolean habitacionElegida = seleccionarHabitacion();
                 if (habitacionElegida) {
                     pedirDatos();
-                    crearReserva();
-                    restaurante();
+                    if (crearReserva()) {
+                        restaurante();
+                    }
                 }
-
             } else if (op == 2) {
                 System.out.print("\nIngrese su cedula: ");
                 String ced = sc.nextLine();
@@ -150,18 +154,19 @@ public class Main {
             }
         }
     }
+     public static void buscarHabitacionesConFiltro() {
 
-    public static void buscarHabitacionesConFiltro() {
+    pedirFechas();
 
-        Double precioMin = leerPrecioOpcional("\nPrecio minimo (deja vacio para no filtrar): ");
-        Double precioMax = leerPrecioOpcional("Precio maximo (deja vacio para no filtrar): ");
+    Double precioMin = leerPrecioOpcional("\nPrecio minimo (deja vacio para no filtrar): ");
+    Double precioMax = leerPrecioOpcional("Precio maximo (deja vacio para no filtrar): ");
 
-        System.out.print("Tipo de habitacion, ej: Sencilla, Doble, Suite (deja vacio para no filtrar): ");
-        String textoTipo = sc.nextLine().trim();
-        String tipo = textoTipo.isEmpty() ? null : textoTipo;
+    System.out.print("Tipo de habitacion, ej: Sencilla, Doble, Suite (deja vacio para no filtrar): ");
+    String textoTipo = sc.nextLine().trim();
+    String tipo = textoTipo.isEmpty() ? null : textoTipo;
 
-        new Hotel().buscarConFiltros(precioMin, precioMax, tipo);
-    }
+       new Hotel().buscarConFiltros(precioMin, precioMax, tipo, fechaEntrada, fechaSalida);
+}
 
     public static Double leerPrecioOpcional(String mensaje) {
         while (true) {
@@ -429,16 +434,41 @@ public class Main {
         }
     }
 
+    
+    public static void pedirFechas() {
 
-    public static boolean mostrarHabitaciones() {
-        System.out.println("\nHABITACIONES DISPONIBLES:");
-        String sql = "SELECT numero, tipo, precio FROM Habitaciones WHERE disponible = 1";
-        boolean hayDisponibles = false;
+    fechaEntrada = leerFecha("\nFecha de entrada (ej: 2026-10-07, 07/10/2026 o 07-10-2026): ");
 
-        try (Connection con = conectar();
-             PreparedStatement ps = con.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+    while (java.time.LocalDate.parse(fechaEntrada).isBefore(java.time.LocalDate.now())) {
+        System.out.println(" La fecha de entrada no puede ser anterior a hoy. Intenta de nuevo.");
+        fechaEntrada = leerFecha("Fecha de entrada: ");
+    }
 
+    fechaSalida = leerFecha("Fecha de salida (mismo formato): ");
+
+    while (!java.time.LocalDate.parse(fechaSalida).isAfter(java.time.LocalDate.parse(fechaEntrada))) {
+        System.out.println(" La fecha de salida debe ser posterior a la de entrada. Intenta de nuevo.");
+        fechaSalida = leerFecha("Fecha de salida: ");
+    }
+}
+
+      public static boolean mostrarHabitaciones() {
+    System.out.println("\nHABITACIONES DISPONIBLES DEL " + fechaEntrada + " AL " + fechaSalida + ":");
+
+    String sql =
+        "SELECT h.numero, h.tipo, h.precio FROM Habitaciones h " +
+        "WHERE NOT EXISTS (SELECT 1 FROM Reservas r WHERE r.id_habitacion = h.id_habitacion " +
+        "AND r.estado = 'Confirmada' AND r.fecha_entrada < ? AND r.fecha_salida > ?) " +
+        "ORDER BY h.numero";
+    boolean hayDisponibles = false;
+
+    try (Connection con = conectar();
+         PreparedStatement ps = con.prepareStatement(sql)) {
+
+        ps.setDate(1, Date.valueOf(fechaSalida));
+        ps.setDate(2, Date.valueOf(fechaEntrada));
+
+        try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 System.out.println(
                     rs.getInt("numero") + " - " +
@@ -447,16 +477,18 @@ public class Main {
                 );
                 hayDisponibles = true;
             }
-
-            if (!hayDisponibles) {
-                System.out.println("En este momento no hay habitaciones disponibles.");
-            }
-
-        } catch (SQLException e) {
-            System.out.println("Error al consultar habitaciones: " + e.getMessage());
         }
 
-        return hayDisponibles;
+        if (!hayDisponibles) {
+            System.out.println("No hay habitaciones disponibles en esas fechas.");
+        }
+
+    } catch (SQLException e) {
+        System.out.println("Error al consultar habitaciones: " + e.getMessage());
+    }
+
+    return hayDisponibles;
+
     }
 
 
@@ -477,13 +509,18 @@ public class Main {
                 return false;
             }
 
-            String sql = "SELECT id_habitacion, tipo, precio FROM Habitaciones "
-                       + "WHERE numero = ? AND disponible = 1";
+            String sql = "SELECT h.id_habitacion, h.tipo, h.precio FROM Habitaciones h "
+           + "WHERE h.numero = ? AND NOT EXISTS (SELECT 1 FROM Reservas r "
+           + "WHERE r.id_habitacion = h.id_habitacion AND r.estado = 'Confirmada' "
+           + "AND r.fecha_entrada < ? AND r.fecha_salida > ?)";
 
             try (Connection con = conectar();
                  PreparedStatement ps = con.prepareStatement(sql)) {
 
                 ps.setInt(1, op);
+                ps.setDate(2, Date.valueOf(fechaSalida));
+                ps.setDate(3, Date.valueOf(fechaEntrada));
+                
 
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
@@ -568,27 +605,37 @@ public class Main {
         return -1;
     }
 
-    public static void crearReserva() {
+    public static boolean crearReserva() {
 
-        String entrada = leerFecha("\nFecha de entrada (ej: 2026-10-07, 07/10/2026 o 07-10-2026): ");
-        String salida = leerFecha("Fecha de salida (mismo formato): ");
+    String choque =
+        "SELECT 1 FROM Reservas WITH (UPDLOCK, HOLDLOCK) " +
+        "WHERE id_habitacion = ? AND estado = 'Confirmada' " +
+        "AND fecha_entrada < ? AND fecha_salida > ?";
+    String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado) "
+                     + "VALUES (?, ?, ?, ?, 'Confirmada')";
 
-        while (java.time.LocalDate.parse(salida).isBefore(java.time.LocalDate.parse(entrada))) {
-            System.out.println(" La fecha de salida no puede ser anterior a la de entrada. Intenta de nuevo.");
-            salida = leerFecha("Fecha de salida (mismo formato): ");
-        }
+    try (Connection con = conectar()) {
 
-        String insertar = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado) "
-                         + "VALUES (?, ?, ?, ?, 'Confirmada')";
-        String actualizar = "UPDATE Habitaciones SET disponible = 0 WHERE id_habitacion = ?";
-
-        try (Connection con = conectar()) {
+        con.setAutoCommit(false);
+        try {
+            try (PreparedStatement ps = con.prepareStatement(choque)) {
+                ps.setInt(1, idHabitacionSeleccionada);
+                ps.setDate(2, Date.valueOf(fechaSalida));
+                ps.setDate(3, Date.valueOf(fechaEntrada));
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        con.rollback();
+                        System.out.println(" Esa habitacion ya esta reservada en esas fechas. Intenta con otra.");
+                        return false;
+                    }
+                }
+            }
 
             try (PreparedStatement ps = con.prepareStatement(insertar, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, idCliente);
                 ps.setInt(2, idHabitacionSeleccionada);
-                ps.setDate(3, Date.valueOf(entrada));
-                ps.setDate(4, Date.valueOf(salida));
+                ps.setDate(3, Date.valueOf(fechaEntrada));
+                ps.setDate(4, Date.valueOf(fechaSalida));
                 ps.executeUpdate();
 
                 try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -598,17 +645,21 @@ public class Main {
                 }
             }
 
-            try (PreparedStatement ps = con.prepareStatement(actualizar)) {
-                ps.setInt(1, idHabitacionSeleccionada);
-                ps.executeUpdate();
-            }
-
+            con.commit();
             System.out.println("\n Reserva registrada con exito (ID " + idReserva + ")");
+            return true;
 
         } catch (SQLException e) {
-            System.out.println("Error al crear la reserva: " + e.getMessage());
+            con.rollback();
+            throw e;
         }
+
+    } catch (SQLException e) {
+        System.out.println("Error al crear la reserva: " + e.getMessage());
     }
+
+    return false;
+}
 
     public static void restaurante() {
 

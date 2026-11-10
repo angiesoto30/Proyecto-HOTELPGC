@@ -229,8 +229,14 @@ public class VentanaEstadoHabitaciones extends JPanel {
     private List<Object[]> consultar() throws Exception {
         List<Object[]> filas = new ArrayList<>();
 
-        String sql = "SELECT numero, tipo, piso, capacidad, precio, disponible "
-                   + "FROM Habitaciones ORDER BY numero";
+        String sql =
+    "SELECT h.numero, h.tipo, h.piso, h.capacidad, h.precio, " +
+    "  CASE WHEN EXISTS (SELECT 1 FROM Reservas r WHERE r.id_habitacion = h.id_habitacion " +
+    "AND r.estado = 'Confirmada' " +
+    "AND r.fecha_entrada <= CAST(GETDATE() AS DATE) " +
+    "AND r.fecha_salida > CAST(GETDATE() AS DATE)) " +
+    "THEN 0 ELSE 1 END AS disponible " +
+    "FROM Habitaciones h ORDER BY h.numero";
 
         try (Connection con = Main.conectar()) {
             if (con == null) {
