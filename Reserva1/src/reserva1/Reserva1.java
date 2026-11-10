@@ -52,6 +52,11 @@ public class Reserva1 {
 
     
     public static Reserva1 crear(Cliente cliente, Habitacion habitacion, String entrada, String salida) {
+        
+        if (!habitacionLibre(habitacion.getIdHabitacion(), entrada, salida)) {
+    System.out.println("La habitacion ya esta reservada en esas fechas.");
+    return null;
+}
 
         String sql = "INSERT INTO Reservas (id_cliente, id_habitacion, fecha_entrada, fecha_salida, estado) "
                    + "VALUES (?, ?, ?, ?, 'Confirmada')";
@@ -68,7 +73,7 @@ public class Reserva1 {
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
                     int id = keys.getInt(1);
-                    habitacion.setDisponible(false);
+                    
                     return new Reserva1(id, cliente, habitacion, entrada, salida, "Confirmada");
                 }
             }
@@ -79,4 +84,25 @@ public class Reserva1 {
 
         return null;
     }
+    public static boolean habitacionLibre(int idHabitacion, String entrada, String salida) {
+
+    String sql = "SELECT 1 FROM Reservas WHERE id_habitacion = ? AND estado = 'Confirmada' "
+               + "AND fecha_entrada < ? AND fecha_salida > ?";
+
+    try (Connection con = Main.conectar();
+         PreparedStatement ps = con.prepareStatement(sql)) {
+
+        ps.setInt(1, idHabitacion);
+        ps.setDate(2, Date.valueOf(salida));
+        ps.setDate(3, Date.valueOf(entrada));
+
+        try (ResultSet rs = ps.executeQuery()) {
+            return !rs.next();
+        }
+
+    } catch (SQLException e) {
+        System.out.println("Error al verificar disponibilidad: " + e.getMessage());
+        return false;
+    }
+}
 }

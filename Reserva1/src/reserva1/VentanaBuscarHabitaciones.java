@@ -12,6 +12,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.Date;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+
+
+
 
 public class VentanaBuscarHabitaciones extends JPanel {
 
@@ -36,6 +44,13 @@ public class VentanaBuscarHabitaciones extends JPanel {
 
     private final JTextField tfPrecioMin = new JTextField();
     private final JTextField tfPrecioMax = new JTextField();
+    private final JTextField tfEntrada = new JTextField();
+    private final JTextField tfSalida = new JTextField();
+    private static final DateTimeFormatter[] FORMATOS = {
+    DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT),
+    DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT),
+    DateTimeFormatter.ofPattern("dd-MM-uuuu").withResolverStyle(ResolverStyle.STRICT)
+};
     private final JComboBox<String> cbTipo = new JComboBox<>();
     private final JLabel lblEstado = new JLabel(" ");
     private final JButton btnBuscar = new JButton("Buscar");
@@ -66,37 +81,57 @@ public class VentanaBuscarHabitaciones extends JPanel {
         Tarjeta tarjeta = new Tarjeta();
         tarjeta.setLayout(new BorderLayout(0, 14));
         tarjeta.setBorder(new EmptyBorder(26, 32, 22, 32));
-        tarjeta.setPreferredSize(new Dimension(780, 540));
+       tarjeta.setPreferredSize(new Dimension(780, 590));
 
         JLabel titulo = new JLabel("BUSCAR HABITACIONES");
         titulo.setFont(new Font("SansSerif", Font.BOLD, 15));
         titulo.setForeground(DORADO);
 
-        JPanel filtros = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        filtros.setOpaque(false);
+    JPanel fila1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+    fila1.setOpaque(false);
+    JPanel fila2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+    fila2.setOpaque(false);
 
-        estilizarCampo(tfPrecioMin);
-        estilizarCampo(tfPrecioMax);
-        tfPrecioMin.setPreferredSize(new Dimension(130, 38));
-        tfPrecioMax.setPreferredSize(new Dimension(130, 38));
-        estilizarCombo(cbTipo);
-        cbTipo.setPreferredSize(new Dimension(150, 38));
+    DateTimeFormatter visible = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    tfEntrada.setText(LocalDate.now().format(visible));
+    tfSalida.setText(LocalDate.now().plusDays(1).format(visible));
 
-        btnBuscar.setFont(new Font("SansSerif", Font.BOLD, 12));
-        btnBuscar.setForeground(OSCURO);
-        btnBuscar.setBackground(DORADO);
-        btnBuscar.setBorder(new EmptyBorder(11, 24, 11, 24));
-        btnBuscar.setFocusPainted(false);
-        btnBuscar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnBuscar.addActionListener(e -> buscar());
+   estilizarCampo(tfEntrada);
+   estilizarCampo(tfSalida);
+   estilizarCampo(tfPrecioMin);
+   estilizarCampo(tfPrecioMax);
+   tfEntrada.setPreferredSize(new Dimension(120, 38));
+   tfSalida.setPreferredSize(new Dimension(120, 38));
+   tfPrecioMin.setPreferredSize(new Dimension(130, 38));
+   tfPrecioMax.setPreferredSize(new Dimension(130, 38));
+   estilizarCombo(cbTipo);
+   cbTipo.setPreferredSize(new Dimension(150, 38));
 
-        filtros.add(etiqueta("Precio mínimo"));
-        filtros.add(tfPrecioMin);
-        filtros.add(etiqueta("Precio máximo"));
-        filtros.add(tfPrecioMax);
-        filtros.add(etiqueta("Tipo"));
-        filtros.add(cbTipo);
-        filtros.add(btnBuscar);
+   btnBuscar.setFont(new Font("SansSerif", Font.BOLD, 12));
+   btnBuscar.setForeground(OSCURO);
+   btnBuscar.setBackground(DORADO);
+   btnBuscar.setBorder(new EmptyBorder(11, 24, 11, 24));
+   btnBuscar.setFocusPainted(false);
+   btnBuscar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+   btnBuscar.addActionListener(e -> buscar());
+
+   fila1.add(etiqueta("Entrada (dd/mm/aaaa)"));
+   fila1.add(tfEntrada);
+   fila1.add(etiqueta("Salida"));
+   fila1.add(tfSalida);
+
+   fila2.add(etiqueta("Precio mínimo"));
+   fila2.add(tfPrecioMin);
+   fila2.add(etiqueta("Precio máximo"));
+   fila2.add(tfPrecioMax);
+   fila2.add(etiqueta("Tipo"));
+   fila2.add(cbTipo);
+   fila2.add(btnBuscar);
+
+   JPanel filtros = new JPanel(new GridLayout(2, 1, 0, 10));
+   filtros.setOpaque(false);
+   filtros.add(fila1);
+   filtros.add(fila2);
 
         configurarTabla();
         JScrollPane scroll = new JScrollPane(tabla);
@@ -221,6 +256,16 @@ public class VentanaBuscarHabitaciones extends JPanel {
         }
         return Double.parseDouble(limpio);
     }
+    
+    private static LocalDate parsearFecha(String texto) {
+    for (DateTimeFormatter f : FORMATOS) {
+        try {
+            return LocalDate.parse(texto, f);
+        } catch (DateTimeParseException e) {
+        }
+    }
+    return null;
+}
 
     private void cargarTipos() {
         cbTipo.addItem(TODOS);
@@ -248,6 +293,22 @@ public class VentanaBuscarHabitaciones extends JPanel {
         final Double min = leerPrecio(tfPrecioMin.getText());
         final Double max = leerPrecio(tfPrecioMax.getText());
         final String tipo = (String) cbTipo.getSelectedItem();
+        
+        final LocalDate entrada = parsearFecha(tfEntrada.getText().trim());
+    final LocalDate salida = parsearFecha(tfSalida.getText().trim());
+
+    if (entrada == null || salida == null) {
+    mostrarMensaje("Fecha inválida. Usa dd/mm/aaaa, por ejemplo 07/10/2026.", true);
+    return;
+}
+    if (entrada.isBefore(LocalDate.now())) {
+    mostrarMensaje("La fecha de entrada no puede ser anterior a hoy.", true);
+    return;
+}
+    if (!salida.isAfter(entrada)) {
+    mostrarMensaje("La fecha de salida debe ser posterior a la de entrada.", true);
+    return;
+}
 
         if (min != null && max != null && min > max) {
             mostrarMensaje("El precio mínimo no puede ser mayor que el máximo.", true);
@@ -260,7 +321,7 @@ public class VentanaBuscarHabitaciones extends JPanel {
         new SwingWorker<List<Object[]>, Void>() {
             @Override
             protected List<Object[]> doInBackground() throws Exception {
-                return consultar(min, max, tipo);
+             return consultar(min, max, tipo, entrada, salida);  
             }
 
             @Override
@@ -288,26 +349,31 @@ public class VentanaBuscarHabitaciones extends JPanel {
         }.execute();
     }
 
-    private List<Object[]> consultar(Double min, Double max, String tipo) throws Exception {
-        List<Object[]> lista = new ArrayList<>();
+    private List<Object[]> consultar(Double min, Double max, String tipo,
+                                 LocalDate entrada, LocalDate salida) throws Exception {
+    List<Object[]> lista = new ArrayList<>();
 
-        StringBuilder sql = new StringBuilder(
-            "SELECT numero, tipo, piso, capacidad, precio FROM Habitaciones WHERE disponible = 1");
-        List<Object> parametros = new ArrayList<>();
+    StringBuilder sql = new StringBuilder(
+        "SELECT h.numero, h.tipo, h.piso, h.capacidad, h.precio FROM Habitaciones h " +
+        "WHERE NOT EXISTS (SELECT 1 FROM Reservas r WHERE r.id_habitacion = h.id_habitacion " +
+        "AND r.estado = 'Confirmada' AND r.fecha_entrada < ? AND r.fecha_salida > ?)");
+    List<Object> parametros = new ArrayList<>();
+    parametros.add(Date.valueOf(salida));
+    parametros.add(Date.valueOf(entrada));
 
-        if (min != null) {
-            sql.append(" AND precio >= ?");
-            parametros.add(min);
-        }
-        if (max != null) {
-            sql.append(" AND precio <= ?");
-            parametros.add(max);
-        }
-        if (tipo != null && !tipo.equals(TODOS)) {
-            sql.append(" AND LOWER(tipo) = LOWER(?)");
-            parametros.add(tipo);
-        }
-        sql.append(" ORDER BY precio, numero");
+    if (min != null) {
+        sql.append(" AND h.precio >= ?");
+        parametros.add(min);
+    }
+    if (max != null) {
+        sql.append(" AND h.precio <= ?");
+        parametros.add(max);
+    }
+    if (tipo != null && !tipo.equals(TODOS)) {
+        sql.append(" AND LOWER(h.tipo) = LOWER(?)");
+        parametros.add(tipo);
+    }
+    sql.append(" ORDER BY h.precio, h.numero");
 
         try (Connection con = Main.conectar()) {
             if (con == null) {

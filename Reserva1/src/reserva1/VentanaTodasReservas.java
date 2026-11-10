@@ -59,6 +59,8 @@ public class VentanaTodasReservas extends JPanel {
     private final JLabel lblConfirmarEliminar = new JLabel(" ");
 
     private Fila enAccion;
+    private final JLabel lblConfirmarAccion = new JLabel(" ");
+    private String accionPendiente = "";
     private boolean ocupado = false;
 
     private static class Fila {
@@ -152,6 +154,13 @@ public class VentanaTodasReservas extends JPanel {
 
         JPanel normal = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         normal.setOpaque(false);
+        
+        JButton btnCheckout = botonSecundario("Hacer checkout");
+        btnCheckout.addActionListener(e -> iniciarCambioEstado("checkout"));
+        JButton btnCancelarReserva = botonSecundario("Cancelar reserva");
+        btnCancelarReserva.addActionListener(e -> iniciarCambioEstado("cancelar"));
+        normal.add(btnCheckout);
+        normal.add(btnCancelarReserva);
 
         if (esJefe) {
             JButton btnEditar = botonPrincipal("Editar fechas");
@@ -200,10 +209,25 @@ public class VentanaTodasReservas extends JPanel {
         eliminar.add(lblConfirmarEliminar);
         eliminar.add(btnSi);
         eliminar.add(btnNo);
+        
+        JPanel confirmar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        confirmar.setOpaque(false);
+        lblConfirmarAccion.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        lblConfirmarAccion.setForeground(AVISO);
+
+         JButton btnSiAccion = botonPrincipal("Sí, confirmar");
+         btnSiAccion.addActionListener(e -> confirmarCambioEstado());
+         JButton btnNoAccion = botonSecundario("No, volver");
+         btnNoAccion.addActionListener(e -> cancelarAccion());
+
+         confirmar.add(lblConfirmarAccion);
+         confirmar.add(btnSiAccion);
+         confirmar.add(btnNoAccion);
 
         acciones.add(normal, "normal");
         acciones.add(editar, "editar");
         acciones.add(eliminar, "eliminar");
+        acciones.add(confirmar, "confirmar");
     }
 
     private JLabel etiqueta(String texto) {
@@ -387,6 +411,63 @@ public class VentanaTodasReservas extends JPanel {
         ejecutar(() -> eliminarReserva(id), "Reserva #" + id + " eliminada.");
     }
 
+    
+          private void iniciarCambioEstado(String accion) {
+    Fila f = seleccionada();
+    if (f == null) {
+        return;
+    }
+    if (!f.estado.equals("Confirmada")) {
+        mostrarMensaje("Solo se puede hacer con reservas confirmadas.", true);
+        return;
+    }
+
+    enAccion = f;
+    accionPendiente = accion;
+    tabla.setEnabled(false);
+
+    String verbo = accion.equals("checkout") ? "Hacer checkout de" : "Cancelar";
+    lblConfirmarAccion.setText("¿" + verbo + " la reserva #" + f.id + "?");
+    mostrarMensaje(" ", false);
+    vistasAcc.show(acciones, "confirmar");
+}
+
+private void confirmarCambioEstado() {
+    if (ocupado || enAccion == null) {
+        return;
+    }
+
+    final int id = enAccion.id;
+    final boolean esCheckout = accionPendiente.equals("checkout");
+    final String nuevoEstado = esCheckout ? "Finalizada" : "Cancelada";
+    final String mensaje = esCheckout
+            ? "Checkout realizado en la reserva #" + id + "."
+            : "Reserva #" + id + " cancelada.";
+
+    ejecutar(() -> cambiarEstado(id, nuevoEstado), mensaje);
+}
+
+private void cambiarEstado(int id, String nuevoEstado) throws Exception {
+    String sql = "UPDATE Reservas SET estado = ? WHERE id_reserva = ? AND estado = 'Confirmada'";
+
+    try (Connection con = Main.conectar()) {
+        if (con == null) {
+            throw new IllegalStateException("No hay conexión con la base de datos.");
+        }
+
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, nuevoEstado);
+            ps.setInt(2, id);
+
+            if (ps.executeUpdate() != 1) {
+                throw new IllegalStateException("La reserva ya no está confirmada.");
+            }
+        }
+
+    } catch (SQLException e) {
+        throw new IllegalStateException("Error al actualizar la reserva: " + e.getMessage());
+    }
+}
     private void cancelarAccion() {
         if (ocupado) {
             return;
@@ -463,8 +544,9 @@ public class VentanaTodasReservas extends JPanel {
                         mostrarMensaje(lista.size() == 1 ? "1 reserva." : lista.size() + " reservas.", false);
                     }
                 } catch (Exception ex) {
-                    mostrarMensaje(mensajeDe(ex), true);
-                }
+              ex.printStackTrace();
+              mostrarMensaje(mensajeDe(ex), true);
+}
             }
         }.execute();
     }
